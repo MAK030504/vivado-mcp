@@ -15,7 +15,7 @@ Python that does not have the package. Install it, then point MCP at the
 venv interpreter:
 
 ```powershell
-cd C:\Users\HP\...\vivado-mcp
+cd C:\Users\HP\vivado-mcp
 python -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install -U pip
@@ -26,6 +26,7 @@ python -c "import vivado_mcp; print(vivado_mcp.__file__)"
 
 Both commands must succeed. Copy the printed `sys.executable` path into
 Cursor MCP `command`.
+
 ### 2. Cursor config (Windows)
 
 Replace the `command` value with the exact `python.exe` path from step 1.
@@ -35,7 +36,7 @@ If you used a venv, prefer that interpreter:
 {
   "mcpServers": {
     "vivado": {
-      "command": "C:\\Users\\HP\\path\\to\\vivado-mcp\\.venv\\Scripts\\python.exe",
+      "command": "C:\\Users\\HP\\vivado-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "vivado_mcp"],
       "env": {
         "VIVADO_PATH": "C:\\Users\\HP\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xilinx Design Tools\\Vivado 2018.2",
@@ -57,7 +58,7 @@ Notes:
 ### 3. Smoke-test outside Cursor
 
 ```powershell
-& "C:\Users\HP\path\to\vivado-mcp\.venv\Scripts\python.exe" -m vivado_mcp
+& "C:\Users\HP\vivado-mcp\.venv\Scripts\python.exe" -m vivado_mcp
 ```
 
 It should start and wait (stdio MCP). Ctrl+C to stop.
