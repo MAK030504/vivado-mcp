@@ -51,6 +51,14 @@ def test_mcp_server_registers_project_tools() -> None:
     assert "close_project" in tool_names
 
 
+def test_mcp_server_registers_source_tools() -> None:
+    tool_names = {tool.name for tool in server_module.mcp._tool_manager.list_tools()}
+    assert "create_rtl_file" in tool_names
+    assert "add_source" in tool_names
+    assert "remove_source" in tool_names
+    assert "list_sources" in tool_names
+
+
 def test_create_project_tool_delegates(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     from vivado_mcp.projects import ProjectInfo, ProjectManager, ProjectOperationResult
 

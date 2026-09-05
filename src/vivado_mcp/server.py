@@ -1,7 +1,7 @@
 """MCP server entrypoint for Vivado MCP.
 
-Tool handlers stay thin: they delegate Vivado-specific work to the Vivado
-abstraction / project manager and return structured results.
+Tool handlers stay thin: they delegate to project/source managers and the
+Vivado abstraction, returning structured results only.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from mcp.server import MCPServer
 from vivado_mcp import __version__
 from vivado_mcp.config import Config
 from vivado_mcp.projects import ProjectManager
+from vivado_mcp.sources import SourceManager
 from vivado_mcp.vivado import Vivado
 
 logger = logging.getLogger(__name__)
@@ -22,16 +23,16 @@ mcp = MCPServer(
     name="vivado-mcp",
     version=__version__,
     instructions=(
-        "MCP server for AMD/Xilinx Vivado. Use get_vivado_version to verify "
-        "Vivado is reachable, then create_project / open_project / close_project "
-        "for project management. Users must provide their own licensed Vivado "
-        "installation. There is no generic Tcl or shell execution tool."
+        "MCP server for AMD/Xilinx Vivado. Use get_vivado_version first, then "
+        "create_project / open_project / close_project for projects, and "
+        "create_rtl_file / add_source / remove_source / list_sources for RTL. "
+        "Users must provide their own licensed Vivado installation. There is "
+        "no generic Tcl or shell execution tool."
     ),
 )
 
 
 def _build_vivado() -> Vivado:
-    """Construct a Vivado client from the current process environment."""
     return Vivado(Config.from_env())
 
 
@@ -39,21 +40,19 @@ def _build_project_manager() -> ProjectManager:
     return ProjectManager(_build_vivado())
 
 
+def _build_source_manager() -> SourceManager:
+    return SourceManager(_build_vivado())
+
+
 @mcp.tool()
 def get_vivado_version() -> dict[str, Any]:
     """Detect the installed AMD/Xilinx Vivado version.
 
-    Call this tool to check whether Vivado is available before running any
-    FPGA project, simulation, synthesis, or implementation workflow.
-
-    Returns structured information including whether Vivado is installed,
-    the version string, the resolved executable path, and the host platform.
-    If Vivado cannot be found, returns ``installed: false`` with guidance on
-    setting the ``VIVADO_PATH`` environment variable.
+    Call this before project or RTL workflows. Returns structured install
+    information, or ``installed: false`` with guidance if Vivado is missing.
     """
     logger.info("Tool invoked: get_vivado_version")
-    info = _build_vivado().get_version()
-    return info.to_dict()
+    return _build_vivado().get_version().to_dict()
 
 
 @mcp.tool()
@@ -61,14 +60,11 @@ def create_project(name: str, path: str, part: str) -> dict[str, Any]:
     """Create a new Vivado project in batch mode.
 
     Args:
-        name: Project name (letters, digits, underscore; must start with a
-            letter or underscore).
-        path: Parent directory for the project. The project is created at
-            ``{path}/{name}/{name}.xpr``. Directories are created if needed.
-            Existing projects are never overwritten.
-        part: Vivado FPGA part string, for example ``xc7a35tcpg236-1``.
+        name: Project name (identifier characters only).
+        path: Parent directory for the project.
+        part: FPGA part string, for example ``xc7a35tcpg236-1``.
 
-    Returns structured success/error data. Does not open the Vivado GUI.
+    Never overwrites an existing project. Does not open the Vivado GUI.
     """
     logger.info(
         "Tool invoked: create_project name=%s path=%s part=%s", name, path, part
@@ -82,13 +78,10 @@ def create_project(name: str, path: str, part: str) -> dict[str, Any]:
 
 @mcp.tool()
 def open_project(path: str) -> dict[str, Any]:
-    """Open an existing Vivado project (.xpr) in batch mode to verify it.
+    """Open/verify an existing Vivado project (.xpr) in batch mode, then close it.
 
     Args:
-        path: Path to a ``.xpr`` file, or to a project directory containing one.
-
-    Opens the project with Vivado Tcl, reports structured metadata, then
-    closes it so no GUI/batch process is left running.
+        path: Path to a ``.xpr`` file or a project directory containing one.
     """
     logger.info("Tool invoked: open_project path=%s", path)
     return _build_project_manager().open_project(path=path).to_dict()
@@ -99,13 +92,105 @@ def close_project(path: str) -> dict[str, Any]:
     """Close a Vivado project cleanly using batch-mode Tcl.
 
     Args:
-        path: Path to a ``.xpr`` file, or to a project directory containing one.
-
-    Opens the project if needed, closes it with Vivado Tcl, and exits batch
-    mode so no Vivado GUI process remains.
+        path: Path to a ``.xpr`` file or a project directory containing one.
     """
     logger.info("Tool invoked: close_project path=%s", path)
     return _build_project_manager().close_project(path=path).to_dict()
+
+
+@mcp.tool()
+def create_rtl_file(
+    project_path: str,
+    filename: str,
+    code: str,
+    language: str = "verilog",
+) -> dict[str, Any]:
+    """Create a Verilog/SystemVerilog file under the project's ``rtl/`` folder.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+        filename: Basename only (for example ``counter.v``). No directories or
+            ``..`` segments. Extension may be omitted and inferred from
+            ``language``.
+        code: Exact RTL text to write. It is not executed, parsed, or modified.
+        language: ``verilog`` (``.v``) or ``systemverilog`` (``.sv``).
+
+    Does not add the file to the Vivado project. Call ``add_source`` afterward.
+    Refuses to overwrite an existing file.
+    """
+    logger.info(
+        "Tool invoked: create_rtl_file project=%s filename=%s language=%s",
+        project_path,
+        filename,
+        language,
+    )
+    return (
+        _build_source_manager()
+        .create_rtl_file(
+            project_path=project_path,
+            filename=filename,
+            code=code,
+            language=language,
+        )
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def add_source(project_path: str, source_path: str) -> dict[str, Any]:
+    """Add an existing ``.v`` / ``.sv`` file to a Vivado project.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+        source_path: Absolute or relative path to an existing RTL file.
+
+    Uses Vivado ``add_files`` and updates compile order. Does not expose
+    arbitrary Tcl.
+    """
+    logger.info(
+        "Tool invoked: add_source project=%s source=%s", project_path, source_path
+    )
+    return (
+        _build_source_manager()
+        .add_source(project_path=project_path, source_path=source_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def remove_source(project_path: str, source_path: str) -> dict[str, Any]:
+    """Remove a source from a Vivado project without deleting the file on disk.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+        source_path: Path of the source currently in the project.
+
+    Removes the file from the project file set only. The physical RTL file is
+    left intact.
+    """
+    logger.info(
+        "Tool invoked: remove_source project=%s source=%s",
+        project_path,
+        source_path,
+    )
+    return (
+        _build_source_manager()
+        .remove_source(project_path=project_path, source_path=source_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def list_sources(project_path: str) -> dict[str, Any]:
+    """List design sources in a Vivado project.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Returns structured entries with path, type, and library when available.
+    """
+    logger.info("Tool invoked: list_sources project=%s", project_path)
+    return _build_source_manager().list_sources(project_path=project_path).to_dict()
 
 
 def main() -> None:
