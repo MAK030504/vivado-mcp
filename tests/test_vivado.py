@@ -88,20 +88,53 @@ def test_explicit_missing_path_fails_cleanly(tmp_path: Path) -> None:
     assert str(missing) in (info.message or "")
 
 
-def test_start_menu_directory_path_is_rejected(tmp_path: Path) -> None:
-    start_menu = tmp_path / "Xilinx Design Tools" / "Vivado 2018.2"
+def test_start_menu_folder_resolves_to_install(tmp_path: Path) -> None:
+    """Accept the Windows Start Menu folder and map it to vivado.bat."""
+    start_menu = (
+        tmp_path
+        / "Users"
+        / "HP"
+        / "AppData"
+        / "Roaming"
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Xilinx Design Tools"
+        / "Vivado 2018.2"
+    )
     start_menu.mkdir(parents=True)
 
-    info = Vivado(
+    install_root = tmp_path / "Xilinx" / "Vivado"
+    executable = _make_executable(install_root / "2018.2" / "bin" / "vivado.bat")
+
+    vivado = Vivado(
         Config(vivado_path=start_menu),
         platform_name="Windows",
-    ).get_version()
+        which=lambda _name: None,
+    )
+    vivado._default_install_roots = lambda: [install_root]  # type: ignore[method-assign]
+
+    assert vivado.resolve_executable() == executable
+
+
+def test_start_menu_folder_unresolved_gives_clear_error(tmp_path: Path) -> None:
+    start_menu = tmp_path / "Start Menu" / "Programs" / "Xilinx Design Tools" / "Vivado 2018.2"
+    start_menu.mkdir(parents=True)
+
+    vivado = Vivado(
+        Config(vivado_path=start_menu),
+        platform_name="Windows",
+        which=lambda _name: None,
+    )
+    vivado._default_install_roots = lambda: []  # type: ignore[method-assign]
+    info = vivado.get_version()
 
     assert info.installed is False
     assert info.error == "vivado_not_found"
-    assert "directory" in (info.message or "").lower()
     assert "Start Menu" in (info.message or "")
     assert "vivado.bat" in (info.message or "")
+    assert "2018.2" in (info.message or "")
 
 
 def test_windows_shortcut_path_is_rejected(tmp_path: Path) -> None:

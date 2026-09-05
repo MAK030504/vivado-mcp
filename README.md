@@ -80,11 +80,11 @@ $env:VIVADO_PATH = "C:\Xilinx\Vivado\2018.2\bin\vivado.bat"
 $env:VIVADO_VERSION = "2018.2"
 ```
 
-**Windows tip:** the Start Menu path
-`...\Start Menu\Programs\Xilinx Design Tools\Vivado 2018.2` is a shortcut
-folder, not the executable. Point `VIVADO_PATH` at `vivado.bat` instead
-(usually `C:\Xilinx\Vivado\2018.2\bin\vivado.bat`). Right-click the Start Menu
-entry → More → Open file location → Properties → copy **Target**.
+**Windows tip:** you may set `VIVADO_PATH` to the Start Menu folder
+`...\Start Menu\Programs\Xilinx Design Tools\Vivado 2018.2`. Vivado MCP will
+treat that as a version hint and try to resolve
+`C:\Xilinx\Vivado\2018.2\bin\vivado.bat`. For the most reliable setup, point
+`VIVADO_PATH` at `vivado.bat` directly.
 
 If `VIVADO_PATH` is unset, Vivado MCP tries:
 
@@ -114,7 +114,7 @@ Add a server entry to your Cursor MCP settings. Example:
       "command": "python",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "C:\\Xilinx\\Vivado\\2018.2\\bin\\vivado.bat",
+        "VIVADO_PATH": "C:\\Users\\HP\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xilinx Design Tools\\Vivado 2018.2",
         "VIVADO_VERSION": "2018.2"
       }
     }
@@ -122,9 +122,10 @@ Add a server entry to your Cursor MCP settings. Example:
 }
 ```
 
-Do **not** set `VIVADO_PATH` to the Start Menu folder
-(`...\Xilinx Design Tools\Vivado 2018.2`). Use `vivado.bat` under your Xilinx
-install, typically `C:\Xilinx\Vivado\2018.2\bin\vivado.bat`.
+That Start Menu folder is accepted. Vivado MCP uses it as a version hint and
+resolves to `vivado.bat` under a normal install (usually
+`C:\Xilinx\Vivado\2018.2\bin\vivado.bat`). If resolution fails, set
+`VIVADO_PATH` to that `vivado.bat` path directly.
 
 See also [`examples/cursor_mcp_config.json`](examples/cursor_mcp_config.json).
 

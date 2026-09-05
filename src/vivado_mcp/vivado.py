@@ -36,12 +36,21 @@ _VERSION_PATTERN = re.compile(
 # Directory names under .../Vivado/<version>/
 _VERSION_DIR_PATTERN = re.compile(r"^\d{4}\.\d+(?:\.\d+)?$")
 
+# Start Menu / shortcut folders are often named "Vivado 2018.2"
+_START_MENU_VERSION_PATTERN = re.compile(
+    r"Vivado\s+(?P<version>\d{4}\.\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+
 _NOT_FOUND_HELP = (
     "Vivado was not found. Install AMD/Xilinx Vivado, ensure the vivado "
     "executable is on PATH, or set the VIVADO_PATH environment variable to "
     "the full path of the Vivado executable "
     "(for example /tools/Xilinx/Vivado/2018.2/bin/vivado on Linux, or "
-    r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat on Windows)."
+    r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat on Windows). "
+    "A Windows Start Menu folder such as "
+    r"'...\Xilinx Design Tools\Vivado 2018.2' is also accepted; Vivado MCP "
+    "will try to resolve it to vivado.bat under a normal Xilinx install root."
 )
 
 
@@ -168,10 +177,13 @@ class Vivado:
 
         if self.config.vivado_path is not None:
             configured = self.config.vivado_path.expanduser()
-            configured_error = self._configured_path_error(configured)
-            if configured_error is not None:
-                raise VivadoNotFoundError(configured_error)
-            candidates.append(configured)
+            if configured.suffix.lower() == ".lnk":
+                raise VivadoNotFoundError(self._shortcut_path_error(configured))
+            expanded = self._expand_configured_path(configured)
+            if expanded:
+                candidates.extend(expanded)
+            else:
+                candidates.append(configured)
         else:
             candidates.extend(self._detect_candidates())
 
@@ -195,27 +207,88 @@ class Vivado:
         details = ""
         if tried:
             details = " Candidates checked: " + ", ".join(tried) + "."
+        configured = self.config.vivado_path
+        if configured is not None and self._looks_like_start_menu_path(
+            configured.expanduser()
+        ):
+            raise VivadoNotFoundError(
+                self._unresolved_start_menu_error(configured.expanduser()) + details
+            )
         raise VivadoNotFoundError(_NOT_FOUND_HELP + details)
 
-    def _configured_path_error(self, path: Path) -> str | None:
-        """Return a specific error for unusable configured paths, else None."""
-        if path.suffix.lower() == ".lnk":
-            return (
-                f"VIVADO_PATH points to a Windows shortcut (.lnk): {path}. "
-                "Point VIVADO_PATH at the real Vivado launcher instead, usually "
-                r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat. "
-                "Tip: right-click the Start Menu Vivado entry → More → Open file "
-                "location → open the shortcut Properties and copy the Target path."
-            )
+    def _expand_configured_path(self, path: Path) -> list[Path]:
+        """Expand Start Menu / version folders into executable candidates.
+
+        Users often paste the Windows Start Menu folder, for example::
+
+            C:\\Users\\...\\Start Menu\\Programs\\Xilinx Design Tools\\Vivado 2018.2
+
+        That folder is not the Vivado binary. When we can infer the version
+        (from the folder name or ``VIVADO_VERSION``), search normal install
+        roots for ``vivado.bat`` / ``vivado``.
+        """
+        results: list[Path] = []
+
+        # Already looks like a launcher path.
+        lowered = path.name.lower()
+        if lowered in {"vivado", "vivado.bat", "vivado.exe", "vivado.cmd"}:
+            return [path]
+
+        version = self._version_hint_from_path(path)
+
         if path.exists() and path.is_dir():
-            return (
-                f"VIVADO_PATH points to a directory, not the Vivado executable: "
-                f"{path}. "
-                "Do not use the Start Menu folder path. Set VIVADO_PATH to the "
-                r"vivado.bat file, typically C:\Xilinx\Vivado\2018.2\bin\vivado.bat "
-                "on Windows, or .../Vivado/2018.2/bin/vivado on Linux."
-            )
+            for name in self._executable_names():
+                results.append(path / name)
+            for relative in self._executable_relative_paths():
+                results.append(path / relative)
+
+        if version:
+            for root in self._default_install_roots():
+                version_dir = root / version
+                for relative in self._executable_relative_paths():
+                    results.append(version_dir / relative)
+
+        return results
+
+    def _version_hint_from_path(self, path: Path) -> str | None:
+        match = _START_MENU_VERSION_PATTERN.search(path.name)
+        if match:
+            return match.group("version")
+        for part in path.parts:
+            if _VERSION_DIR_PATTERN.match(part):
+                return part
+        if self._looks_like_start_menu_path(path) and self.config.preferred_version:
+            return self.config.preferred_version
         return None
+
+    def _looks_like_start_menu_path(self, path: Path) -> bool:
+        text = str(path).replace("/", "\\").lower()
+        if "start menu" in text:
+            return True
+        if "xilinx design tools" in text:
+            return True
+        return _START_MENU_VERSION_PATTERN.search(path.name) is not None
+
+    def _shortcut_path_error(self, path: Path) -> str:
+        return (
+            f"VIVADO_PATH points to a Windows shortcut (.lnk): {path}. "
+            "Point VIVADO_PATH at the Start Menu *folder* "
+            r"('...\Xilinx Design Tools\Vivado 2018.2') or at the real launcher "
+            r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat. "
+            "Tip: right-click the Start Menu Vivado entry → More → Open file "
+            "location, then use that folder path or the shortcut Target."
+        )
+
+    def _unresolved_start_menu_error(self, path: Path) -> str:
+        version = self._version_hint_from_path(path) or "2018.2"
+        return (
+            f"VIVADO_PATH looks like a Windows Start Menu Vivado folder: {path}. "
+            "That folder contains shortcuts, not the Vivado executable. "
+            "Vivado MCP could not find a matching install automatically. "
+            f"Set VIVADO_PATH to the real launcher, usually "
+            f"C:\\Xilinx\\Vivado\\{version}\\bin\\vivado.bat, "
+            "or install/repair Vivado so that path exists."
+        )
 
 
     def run(

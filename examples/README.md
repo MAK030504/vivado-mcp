@@ -5,20 +5,26 @@ Cursor MCP settings.
 
 ## Windows (Vivado 2018.2)
 
-Use the **real launcher**, not the Start Menu folder:
+You can set `VIVADO_PATH` to either:
+
+1. Your Start Menu folder (accepted and resolved automatically when possible):
 
 ```text
-C:\Users\...\Start Menu\Programs\Xilinx Design Tools\Vivado 2018.2   ← wrong
-C:\Xilinx\Vivado\2018.2\bin\vivado.bat                               ← correct
+C:\Users\HP\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Xilinx Design Tools\Vivado 2018.2
 ```
 
-How to confirm the Target path from the Start Menu entry:
+2. Or the real launcher (most reliable):
 
-1. Open the Start Menu → Xilinx Design Tools → Vivado 2018.2
-2. Right-click → More → Open file location
-3. Right-click the Vivado shortcut → Properties
-4. Copy the **Target** value (usually `...\Vivado\2018.2\bin\vivado.bat`)
-5. Set that as `VIVADO_PATH`
+```text
+C:\Xilinx\Vivado\2018.2\bin\vivado.bat
+```
+
+Vivado MCP treats the Start Menu path as a version hint (`2018.2`) and looks
+for `vivado.bat` under normal Xilinx install roots.
+
+If automatic resolution fails, open the Start Menu entry → right-click →
+More → Open file location → Properties → copy **Target**, and set that as
+`VIVADO_PATH`.
 
 ## Notes
 
