@@ -241,6 +241,10 @@ class Vivado:
         if lowered in {"vivado", "vivado.bat", "vivado.exe", "vivado.cmd"}:
             return [path]
 
+        # Paths deep inside an install (e.g. ...\bin\unwrapped\win64.o\vvgl.exe)
+        # should resolve to that install's bin\vivado.bat.
+        results.extend(self._candidates_from_install_tree(path))
+
         version = self._version_hint_from_path(path)
 
         if path.exists() and path.is_dir():
@@ -270,17 +274,22 @@ class Vivado:
 
     def _candidates_from_shortcut_target(self, target: Path) -> list[Path]:
         """Build executable candidates from a shortcut Target path."""
-        results: list[Path] = [target]
+        results: list[Path] = []
         lowered = target.name.lower()
         if lowered in {"vivado", "vivado.bat", "vivado.exe", "vivado.cmd"}:
-            return results
+            return [target]
+
+        # Helper binaries like vvgl.exe live under the install tree; map them
+        # back to bin/vivado.bat.
+        results.extend(self._candidates_from_install_tree(target))
+
         # Target sometimes points at a helper script or install folder.
         if target.exists() and target.is_dir():
             for relative in self._executable_relative_paths():
                 results.append(target / relative)
             for name in self._executable_names():
                 results.append(target / name)
-        # If Target is under .../Vivado/<version>/..., also try bin/vivado.bat.
+        # If Target is under .../Vivado/<version>/..., also try known roots.
         version = self._version_hint_from_path(target)
         if version:
             for root in self._default_install_roots():
@@ -288,6 +297,32 @@ class Vivado:
                 for relative in self._executable_relative_paths():
                     results.append(version_dir / relative)
         return results
+
+    def _candidates_from_install_tree(self, path: Path) -> list[Path]:
+        """If ``path`` is inside a Vivado version directory, return its launchers.
+
+        Handles custom layouts such as::
+
+            D:\\Softwares\\Vivado\\2018.2\\bin\\unwrapped\\win64.o\\vvgl.exe
+        """
+        version_dir = self._find_vivado_version_dir(path)
+        if version_dir is None:
+            return []
+        return [version_dir / relative for relative in self._executable_relative_paths()]
+
+    def _find_vivado_version_dir(self, path: Path) -> Path | None:
+        """Walk parents to find ``.../Vivado/<version>``."""
+        chain = [path, *path.parents]
+        for candidate in chain:
+            if not _VERSION_DIR_PATTERN.match(candidate.name):
+                continue
+            if candidate.parent.name.lower() == "vivado":
+                return candidate
+            # Accept a bare version directory that already contains the launcher.
+            for relative in self._executable_relative_paths():
+                if (candidate / relative).exists():
+                    return candidate
+        return None
 
     def _version_hint_from_path(self, path: Path) -> str | None:
         match = _START_MENU_VERSION_PATTERN.search(path.name)
@@ -473,6 +508,9 @@ class Vivado:
                     Path("C:\\Program Files\\Xilinx\\Vivado"),
                     Path("C:\\Program Files (x86)\\Xilinx\\Vivado"),
                     Path("D:\\Program Files\\Xilinx\\Vivado"),
+                    Path("C:\\Softwares\\Vivado"),
+                    Path("D:\\Softwares\\Vivado"),
+                    Path("E:\\Softwares\\Vivado"),
                 ]
             )
             return roots
@@ -490,6 +528,12 @@ class Vivado:
 
     def _is_valid_executable(self, path: Path) -> bool:
         if not path.exists() or not path.is_file():
+            return False
+        name = path.name.lower()
+        # Reject known GUI helper binaries; the CLI entrypoint is vivado(.bat).
+        if name in {"vvgl.exe", "loader.bat", "xilinx.bat"}:
+            return False
+        if not name.startswith("vivado"):
             return False
         if self.platform_name == "windows":
             return path.suffix.lower() in {".bat", ".cmd", ".exe"} or os.access(

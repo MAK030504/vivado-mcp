@@ -113,7 +113,37 @@ def test_start_menu_folder_resolves_via_shortcut_target(
     assert vivado.resolve_executable() == real
 
 
-def test_start_menu_folder_resolves_to_install(tmp_path: Path) -> None:
+def test_vvgl_helper_path_resolves_to_vivado_bat(tmp_path: Path) -> None:
+    """Custom installs may expose vvgl.exe; resolve to bin/vivado.bat."""
+    version_dir = tmp_path / "Softwares" / "Vivado" / "2018.2"
+    executable = _make_executable(version_dir / "bin" / "vivado.bat")
+    helper = version_dir / "bin" / "unwrapped" / "win64.o" / "vvgl.exe"
+    helper.parent.mkdir(parents=True, exist_ok=True)
+    helper.write_text("helper", encoding="utf-8")
+
+    vivado = Vivado(
+        Config(vivado_path=helper),
+        platform_name="Windows",
+        which=lambda _name: None,
+    )
+    vivado._default_install_roots = lambda: []  # type: ignore[method-assign]
+
+    assert vivado.resolve_executable() == executable
+
+
+def test_softwares_install_root_is_searched(tmp_path: Path) -> None:
+    root = tmp_path / "Softwares" / "Vivado"
+    executable = _make_executable(root / "2018.2" / "bin" / "vivado.bat")
+
+    vivado = Vivado(
+        Config(preferred_version="2018.2"),
+        platform_name="Windows",
+        which=lambda _name: None,
+    )
+    vivado._default_install_roots = lambda: [root]  # type: ignore[method-assign]
+
+    assert vivado.resolve_executable() == executable
+
     """Accept the Windows Start Menu folder and map it to vivado.bat."""
     start_menu = (
         tmp_path

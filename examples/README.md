@@ -54,7 +54,7 @@ If you used a venv, prefer that interpreter:
       "command": "C:\\Users\\HP\\vivado-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "C:\\Xilinx\\Vivado\\2018.2\\bin\\vivado.bat",
+        "VIVADO_PATH": "D:\\Softwares\\Vivado\\2018.2\\bin\\vivado.bat",
         "VIVADO_VERSION": "2018.2"
       }
     }
