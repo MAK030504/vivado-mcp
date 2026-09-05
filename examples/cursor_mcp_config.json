@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vivado": {
+      "command": "python",
+      "args": ["-m", "vivado_mcp"],
+      "env": {
+        "VIVADO_PATH": "/path/to/Vivado/bin/vivado"
+      }
+    }
+  }
+}
