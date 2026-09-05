@@ -1,7 +1,7 @@
 """MCP server entrypoint for Vivado MCP.
 
-Tool handlers stay thin: they delegate to project/source managers and the
-Vivado abstraction, returning structured results only.
+Tool handlers stay thin: they delegate to project/source/simulation managers
+and the Vivado abstraction, returning structured results only.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from mcp.server import MCPServer
 from vivado_mcp import __version__
 from vivado_mcp.config import Config
 from vivado_mcp.projects import ProjectManager
+from vivado_mcp.simulation import SimulationManager
 from vivado_mcp.sources import SourceManager
 from vivado_mcp.vivado import Vivado
 
@@ -24,8 +25,10 @@ mcp = MCPServer(
     version=__version__,
     instructions=(
         "MCP server for AMD/Xilinx Vivado. Use get_vivado_version first, then "
-        "create_project / open_project / close_project for projects, and "
-        "create_rtl_file / add_source / remove_source / list_sources for RTL. "
+        "create_project / open_project / close_project for projects, "
+        "create_rtl_file / add_source / remove_source / list_sources for RTL, "
+        "and create_testbench / run_simulation / get_simulation_status for "
+        "RTL simulation. Add testbenches with add_source(..., fileset='sim_1'). "
         "Users must provide their own licensed Vivado installation. There is "
         "no generic Tcl or shell execution tool."
     ),
@@ -42,6 +45,10 @@ def _build_project_manager() -> ProjectManager:
 
 def _build_source_manager() -> SourceManager:
     return SourceManager(_build_vivado())
+
+
+def _build_simulation_manager() -> SimulationManager:
+    return SimulationManager(_build_vivado())
 
 
 @mcp.tool()
@@ -137,22 +144,35 @@ def create_rtl_file(
 
 
 @mcp.tool()
-def add_source(project_path: str, source_path: str) -> dict[str, Any]:
-    """Add an existing ``.v`` / ``.sv`` file to a Vivado project.
+def add_source(
+    project_path: str,
+    source_path: str,
+    fileset: str = "sources_1",
+) -> dict[str, Any]:
+    """Add an existing ``.v`` / ``.sv`` file to a Vivado project fileset.
 
     Args:
         project_path: Path to the ``.xpr`` or project directory.
         source_path: Absolute or relative path to an existing RTL file.
+        fileset: ``sources_1`` for design RTL (default) or ``sim_1`` for
+            simulation / testbench sources.
 
     Uses Vivado ``add_files`` and updates compile order. Does not expose
     arbitrary Tcl.
     """
     logger.info(
-        "Tool invoked: add_source project=%s source=%s", project_path, source_path
+        "Tool invoked: add_source project=%s source=%s fileset=%s",
+        project_path,
+        source_path,
+        fileset,
     )
     return (
         _build_source_manager()
-        .add_source(project_path=project_path, source_path=source_path)
+        .add_source(
+            project_path=project_path,
+            source_path=source_path,
+            fileset=fileset,
+        )
         .to_dict()
     )
 
@@ -191,6 +211,96 @@ def list_sources(project_path: str) -> dict[str, Any]:
     """
     logger.info("Tool invoked: list_sources project=%s", project_path)
     return _build_source_manager().list_sources(project_path=project_path).to_dict()
+
+
+@mcp.tool()
+def create_testbench(
+    project_path: str,
+    filename: str,
+    code: str,
+    language: str = "verilog",
+) -> dict[str, Any]:
+    """Create a Verilog/SystemVerilog testbench under the project's ``sim/`` folder.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+        filename: Basename only (for example ``counter_tb.v``). No directories
+            or ``..`` segments.
+        code: Exact testbench text to write. It is not executed or modified.
+        language: ``verilog`` (``.v``) or ``systemverilog`` (``.sv``).
+
+    Does not register the file in Vivado. Call ``add_source`` with
+    ``fileset='sim_1'`` afterward. Refuses to overwrite an existing file.
+    """
+    logger.info(
+        "Tool invoked: create_testbench project=%s filename=%s language=%s",
+        project_path,
+        filename,
+        language,
+    )
+    return (
+        _build_simulation_manager()
+        .create_testbench(
+            project_path=project_path,
+            filename=filename,
+            code=code,
+            language=language,
+        )
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def run_simulation(
+    project_path: str,
+    top_module: str | None = None,
+    simulation_time: str = "100ns",
+) -> dict[str, Any]:
+    """Run RTL behavioral simulation with Vivado XSim in batch mode.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+        top_module: Optional simulation top (testbench) module name. When
+            omitted, uses the current ``sim_1`` top property.
+        simulation_time: Runtime such as ``100ns``, ``1us``, or ``1ms``.
+
+    Opens the project, configures XSim, launches behavioral simulation, then
+    closes cleanly. Does not open the Vivado GUI. Distinguishes compile,
+    elaborate, runtime, and assertion failures when possible.
+    """
+    logger.info(
+        "Tool invoked: run_simulation project=%s top=%s time=%s",
+        project_path,
+        top_module,
+        simulation_time,
+    )
+    return (
+        _build_simulation_manager()
+        .run_simulation(
+            project_path=project_path,
+            top_module=top_module,
+            simulation_time=simulation_time,
+        )
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_simulation_status(project_path: str) -> dict[str, Any]:
+    """Return structured status for the most recent simulation on a project.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    If no simulation has been run, returns ``status: not_run`` rather than
+    raising an exception.
+    """
+    logger.info("Tool invoked: get_simulation_status project=%s", project_path)
+    return (
+        _build_simulation_manager()
+        .get_simulation_status(project_path=project_path)
+        .to_dict()
+    )
 
 
 def main() -> None:

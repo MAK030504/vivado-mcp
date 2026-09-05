@@ -98,3 +98,41 @@ class SourceNotFoundError(VivadoMCPError):
 
     def __init__(self, message: str) -> None:
         super().__init__(message, code="source_not_found")
+
+
+class InvalidSimulationTimeError(VivadoMCPError):
+    """Raised when a simulation runtime string is invalid or unsafe."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="invalid_simulation_time")
+
+
+class InvalidTopModuleError(VivadoMCPError):
+    """Raised when a simulation top module name is invalid."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="invalid_top_module")
+
+
+class NoSimulationSourcesError(VivadoMCPError):
+    """Raised when a project has no simulation sources in ``sim_1``."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="no_simulation_sources")
+
+
+class SimulationError(VivadoMCPError):
+    """Raised when Vivado simulation fails (compile/elaborate/runtime/etc.)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: str = "failed",
+        stdout: str = "",
+        stderr: str = "",
+    ) -> None:
+        super().__init__(message, code="simulation_error")
+        self.status = status
+        self.stdout = stdout
+        self.stderr = stderr

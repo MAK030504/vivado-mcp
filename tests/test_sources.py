@@ -154,12 +154,34 @@ def test_add_source_success(tmp_path: Path) -> None:
     source = tmp_path / "counter.v"
     source.write_text("module counter; endmodule\n", encoding="utf-8")
     fake = FakeVivado(
-        stdout=f"VIVADO_MCP_STATUS=OK\nVIVADO_MCP_SOURCE={source.as_posix()}\n"
+        stdout=(
+            f"VIVADO_MCP_STATUS=OK\nVIVADO_MCP_SOURCE={source.as_posix()}\n"
+            "VIVADO_MCP_FILESET=sources_1\n"
+        )
     )
     result = SourceManager(fake).add_source(str(tmp_path), str(source))
     assert result.success is True
     assert "add_files -norecurse" in fake.scripts[0]
     assert "update_compile_order -fileset sources_1" in fake.scripts[0]
+
+
+def test_add_source_to_sim_fileset(tmp_path: Path) -> None:
+    _make_project(tmp_path)
+    source = tmp_path / "sim" / "tb.v"
+    source.parent.mkdir(parents=True)
+    source.write_text("module tb; endmodule\n", encoding="utf-8")
+    fake = FakeVivado(
+        stdout=(
+            f"VIVADO_MCP_STATUS=OK\nVIVADO_MCP_SOURCE={source.as_posix()}\n"
+            "VIVADO_MCP_FILESET=sim_1\n"
+        )
+    )
+    result = SourceManager(fake).add_source(
+        str(tmp_path), str(source), fileset="sim_1"
+    )
+    assert result.success is True
+    assert "add_files -fileset sim_1 -norecurse" in fake.scripts[0]
+    assert "update_compile_order -fileset sim_1" in fake.scripts[0]
 
 
 def test_add_source_missing_file(tmp_path: Path) -> None:
