@@ -131,10 +131,10 @@ Cursor with `The system cannot find the path specified`.
 {
   "mcpServers": {
     "vivado": {
-      "command": "C:\\Users\\HP\\path\\to\\vivado-mcp\\.venv\\Scripts\\python.exe",
+      "command": "C:\\Users\\HP\\vivado-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "C:\\Users\\HP\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xilinx Design Tools\\Vivado 2018.2",
+        "VIVADO_PATH": "C:\\Xilinx\\Vivado\\2018.2\\bin\\vivado.bat",
         "VIVADO_VERSION": "2018.2"
       }
     }

@@ -27,6 +27,21 @@ python -c "import vivado_mcp; print(vivado_mcp.__file__)"
 Both commands must succeed. Copy the printed `sys.executable` path into
 Cursor MCP `command`.
 
+### Find the real vivado.bat (important on Windows)
+
+If `get_vivado_version` returns `vivado_not_found`, your Start Menu folder did
+not resolve to an install. Discover the Target in PowerShell:
+
+```powershell
+$folder = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Xilinx Design Tools\Vivado 2018.2"
+Get-ChildItem $folder -Filter *.lnk | ForEach-Object {
+  (New-Object -ComObject WScript.Shell).CreateShortcut($_.FullName).TargetPath
+}
+Test-Path "C:\Xilinx\Vivado\2018.2\bin\vivado.bat"
+```
+
+Copy the printed `.bat` path into `VIVADO_PATH` (example below).
+
 ### 2. Cursor config (Windows)
 
 Replace the `command` value with the exact `python.exe` path from step 1.
@@ -39,7 +54,7 @@ If you used a venv, prefer that interpreter:
       "command": "C:\\Users\\HP\\vivado-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "C:\\Users\\HP\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xilinx Design Tools\\Vivado 2018.2",
+        "VIVADO_PATH": "C:\\Xilinx\\Vivado\\2018.2\\bin\\vivado.bat",
         "VIVADO_VERSION": "2018.2"
       }
     }

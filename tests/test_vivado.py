@@ -88,6 +88,31 @@ def test_explicit_missing_path_fails_cleanly(tmp_path: Path) -> None:
     assert str(missing) in (info.message or "")
 
 
+def test_start_menu_folder_resolves_via_shortcut_target(
+    tmp_path: Path, monkeypatch
+) -> None:
+    start_menu = tmp_path / "Start Menu" / "Programs" / "Xilinx Design Tools" / "Vivado 2018.2"
+    start_menu.mkdir(parents=True)
+    shortcut = start_menu / "Vivado 2018.2.lnk"
+    shortcut.write_bytes(b"placeholder")
+
+    real = _make_executable(tmp_path / "custom" / "vivado.bat")
+
+    monkeypatch.setattr(
+        "vivado_mcp.vivado.read_shortcut_target",
+        lambda path: real if path == shortcut else None,
+    )
+
+    vivado = Vivado(
+        Config(vivado_path=start_menu),
+        platform_name="Windows",
+        which=lambda _name: None,
+    )
+    vivado._default_install_roots = lambda: []  # type: ignore[method-assign]
+
+    assert vivado.resolve_executable() == real
+
+
 def test_start_menu_folder_resolves_to_install(tmp_path: Path) -> None:
     """Accept the Windows Start Menu folder and map it to vivado.bat."""
     start_menu = (

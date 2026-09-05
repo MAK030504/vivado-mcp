@@ -24,6 +24,8 @@ from vivado_mcp.errors import (
     VivadoNotFoundError,
     VivadoVersionParseError,
 )
+from vivado_mcp.shortcuts import read_shortcut_target
+
 
 logger = logging.getLogger(__name__)
 
@@ -178,12 +180,17 @@ class Vivado:
         if self.config.vivado_path is not None:
             configured = self.config.vivado_path.expanduser()
             if configured.suffix.lower() == ".lnk":
-                raise VivadoNotFoundError(self._shortcut_path_error(configured))
-            expanded = self._expand_configured_path(configured)
-            if expanded:
-                candidates.extend(expanded)
+                target = read_shortcut_target(configured)
+                if target is not None:
+                    candidates.extend(self._candidates_from_shortcut_target(target))
+                else:
+                    raise VivadoNotFoundError(self._shortcut_path_error(configured))
             else:
-                candidates.append(configured)
+                expanded = self._expand_configured_path(configured)
+                if expanded:
+                    candidates.extend(expanded)
+                else:
+                    candidates.append(configured)
         else:
             candidates.extend(self._detect_candidates())
 
@@ -241,6 +248,17 @@ class Vivado:
                 results.append(path / name)
             for relative in self._executable_relative_paths():
                 results.append(path / relative)
+            # Resolve Start Menu .lnk files to their Target paths.
+            try:
+                children = list(path.iterdir())
+            except OSError:
+                children = []
+            for child in children:
+                if child.suffix.lower() != ".lnk":
+                    continue
+                target = read_shortcut_target(child)
+                if target is not None:
+                    results.extend(self._candidates_from_shortcut_target(target))
 
         if version:
             for root in self._default_install_roots():
@@ -248,6 +266,27 @@ class Vivado:
                 for relative in self._executable_relative_paths():
                     results.append(version_dir / relative)
 
+        return results
+
+    def _candidates_from_shortcut_target(self, target: Path) -> list[Path]:
+        """Build executable candidates from a shortcut Target path."""
+        results: list[Path] = [target]
+        lowered = target.name.lower()
+        if lowered in {"vivado", "vivado.bat", "vivado.exe", "vivado.cmd"}:
+            return results
+        # Target sometimes points at a helper script or install folder.
+        if target.exists() and target.is_dir():
+            for relative in self._executable_relative_paths():
+                results.append(target / relative)
+            for name in self._executable_names():
+                results.append(target / name)
+        # If Target is under .../Vivado/<version>/..., also try bin/vivado.bat.
+        version = self._version_hint_from_path(target)
+        if version:
+            for root in self._default_install_roots():
+                version_dir = root / version
+                for relative in self._executable_relative_paths():
+                    results.append(version_dir / relative)
         return results
 
     def _version_hint_from_path(self, path: Path) -> str | None:
@@ -271,23 +310,29 @@ class Vivado:
 
     def _shortcut_path_error(self, path: Path) -> str:
         return (
-            f"VIVADO_PATH points to a Windows shortcut (.lnk): {path}. "
-            "Point VIVADO_PATH at the Start Menu *folder* "
-            r"('...\Xilinx Design Tools\Vivado 2018.2') or at the real launcher "
-            r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat. "
-            "Tip: right-click the Start Menu Vivado entry → More → Open file "
-            "location, then use that folder path or the shortcut Target."
+            f"VIVADO_PATH points to a Windows shortcut (.lnk): {path}, "
+            "and its Target could not be read. "
+            "In PowerShell run:\n"
+            r'  $s = (New-Object -ComObject WScript.Shell).CreateShortcut("'
+            + str(path).replace('"', "")
+            + r'"); $s.TargetPath'
+            "\nThen set VIVADO_PATH to that Target (usually "
+            r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat)."
         )
 
     def _unresolved_start_menu_error(self, path: Path) -> str:
         version = self._version_hint_from_path(path) or "2018.2"
         return (
             f"VIVADO_PATH looks like a Windows Start Menu Vivado folder: {path}. "
-            "That folder contains shortcuts, not the Vivado executable. "
-            "Vivado MCP could not find a matching install automatically. "
-            f"Set VIVADO_PATH to the real launcher, usually "
-            f"C:\\Xilinx\\Vivado\\{version}\\bin\\vivado.bat, "
-            "or install/repair Vivado so that path exists."
+            "That folder contains shortcuts, not the Vivado executable, and no "
+            "matching install was found automatically. "
+            "In PowerShell, discover the real launcher with:\n"
+            f'  Get-ChildItem "{path}" -Filter *.lnk | '
+            "ForEach-Object { "
+            "(New-Object -ComObject WScript.Shell).CreateShortcut($_.FullName).TargetPath "
+            "}\n"
+            f"Then set VIVADO_PATH to that path (often "
+            f"C:\\Xilinx\\Vivado\\{version}\\bin\\vivado.bat)."
         )
 
 
@@ -425,6 +470,9 @@ class Vivado:
                 [
                     home / "Xilinx" / "Vivado",
                     home / "AMD" / "Vivado",
+                    Path("C:\\Program Files\\Xilinx\\Vivado"),
+                    Path("C:\\Program Files (x86)\\Xilinx\\Vivado"),
+                    Path("D:\\Program Files\\Xilinx\\Vivado"),
                 ]
             )
             return roots
