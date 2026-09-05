@@ -114,6 +114,16 @@ def test_parse_vivado_version_typical_output() -> None:
     assert parse_vivado_version(raw) == "2024.2"
 
 
+def test_parse_vivado_version_2018_2_banner() -> None:
+    raw = """
+****** Vivado v2018.2 (64-bit)
+  **** SW Build 2258646 on Thu Jun 14 20:02:38 MDT 2018
+  **** IP Build 2256618 on Thu Jun 14 22:10:49 MDT 2018
+    ** Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
+"""
+    assert parse_vivado_version(raw) == "2018.2"
+
+
 def test_parse_vivado_version_without_v_prefix() -> None:
     assert parse_vivado_version("Vivado 2023.1 (64-bit)") == "2023.1"
 

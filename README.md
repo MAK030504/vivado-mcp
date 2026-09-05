@@ -61,7 +61,7 @@ variables (or your MCP client `env` block):
 | Variable | Purpose |
 |----------|---------|
 | `VIVADO_PATH` | Absolute path to the Vivado executable |
-| `VIVADO_VERSION` | Optional preferred version for auto-detection (e.g. `2024.2`) |
+| `VIVADO_VERSION` | Optional preferred version for auto-detection (e.g. `2018.2`) |
 | `VIVADO_WORKSPACE` | Optional default workspace/project directory (reserved for later milestones) |
 
 ### Executable path examples
@@ -69,13 +69,15 @@ variables (or your MCP client `env` block):
 Linux:
 
 ```bash
-export VIVADO_PATH=/tools/Xilinx/Vivado/2024.2/bin/vivado
+export VIVADO_PATH=/tools/Xilinx/Vivado/2018.2/bin/vivado
+export VIVADO_VERSION=2018.2
 ```
 
 Windows (PowerShell):
 
 ```powershell
-$env:VIVADO_PATH = "C:\Xilinx\Vivado\2024.2\bin\vivado.bat"
+$env:VIVADO_PATH = "C:\Xilinx\Vivado\2018.2\bin\vivado.bat"
+$env:VIVADO_VERSION = "2018.2"
 ```
 
 If `VIVADO_PATH` is unset, Vivado MCP tries:
@@ -106,12 +108,16 @@ Add a server entry to your Cursor MCP settings. Example:
       "command": "python",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "/path/to/Vivado/bin/vivado"
+        "VIVADO_PATH": "/tools/Xilinx/Vivado/2018.2/bin/vivado",
+        "VIVADO_VERSION": "2018.2"
       }
     }
   }
 }
 ```
+
+Adjust `VIVADO_PATH` to your real install location. On Windows use
+`...\Vivado\2018.2\bin\vivado.bat`.
 
 See also [`examples/cursor_mcp_config.json`](examples/cursor_mcp_config.json).
 
@@ -127,8 +133,8 @@ Ask the agent to call `get_vivado_version`. A successful result looks like:
 ```json
 {
   "installed": true,
-  "version": "2024.2",
-  "executable": "/tools/Xilinx/Vivado/2024.2/bin/vivado",
+  "version": "2018.2",
+  "executable": "/tools/Xilinx/Vivado/2018.2/bin/vivado",
   "platform": "linux",
   "error": null,
   "message": null

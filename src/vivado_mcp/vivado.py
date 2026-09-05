@@ -40,8 +40,8 @@ _NOT_FOUND_HELP = (
     "Vivado was not found. Install AMD/Xilinx Vivado, ensure the vivado "
     "executable is on PATH, or set the VIVADO_PATH environment variable to "
     "the full path of the Vivado executable "
-    "(for example /tools/Xilinx/Vivado/2024.2/bin/vivado on Linux, or "
-    r"C:\Xilinx\Vivado\2024.2\bin\vivado.bat on Windows)."
+    "(for example /tools/Xilinx/Vivado/2018.2/bin/vivado on Linux, or "
+    r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat on Windows)."
 )
 
 

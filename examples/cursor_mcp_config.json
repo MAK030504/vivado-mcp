@@ -4,7 +4,8 @@
       "command": "python",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "/path/to/Vivado/bin/vivado"
+        "VIVADO_PATH": "/tools/Xilinx/Vivado/2018.2/bin/vivado",
+        "VIVADO_VERSION": "2018.2"
       }
     }
   }
