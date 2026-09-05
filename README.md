@@ -105,13 +105,15 @@ The server speaks MCP over **stdio** (default for Cursor and most local clients)
 
 ## Configure in Cursor
 
-Add a server entry to your Cursor MCP settings. Example:
+On Windows, set `command` to the **full path** of `python.exe` from the
+environment where you installed `vivado-mcp`. Bare `python` often fails inside
+Cursor with `The system cannot find the path specified`.
 
 ```json
 {
   "mcpServers": {
     "vivado": {
-      "command": "python",
+      "command": "C:\\Users\\HP\\path\\to\\vivado-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "vivado_mcp"],
       "env": {
         "VIVADO_PATH": "C:\\Users\\HP\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xilinx Design Tools\\Vivado 2018.2",
@@ -122,15 +124,17 @@ Add a server entry to your Cursor MCP settings. Example:
 }
 ```
 
-That Start Menu folder is accepted. Vivado MCP uses it as a version hint and
-resolves to `vivado.bat` under a normal install (usually
-`C:\Xilinx\Vivado\2018.2\bin\vivado.bat`). If resolution fails, set
-`VIVADO_PATH` to that `vivado.bat` path directly.
+Find the correct interpreter in PowerShell:
 
-See also [`examples/cursor_mcp_config.json`](examples/cursor_mcp_config.json).
+```powershell
+python -c "import sys; print(sys.executable)"
+python -c "import vivado_mcp; print(vivado_mcp.__file__)"
+```
 
-Use the Python interpreter where `vivado-mcp` is installed. On Windows, point
-`VIVADO_PATH` at `vivado.bat` when that is your installer's launcher.
+That Start Menu folder is accepted as a version hint and resolved to
+`vivado.bat` when possible (usually `C:\Xilinx\Vivado\2018.2\bin\vivado.bat`).
+
+See [`examples/README.md`](examples/README.md) for Windows troubleshooting.
 
 ## Verify that Vivado is detected
 
