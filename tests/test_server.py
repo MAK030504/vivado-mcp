@@ -42,3 +42,41 @@ def test_get_vivado_version_tool_delegates(monkeypatch, tmp_path: Path) -> None:
 def test_mcp_server_registers_get_vivado_version() -> None:
     tool_names = {tool.name for tool in server_module.mcp._tool_manager.list_tools()}
     assert "get_vivado_version" in tool_names
+
+
+def test_mcp_server_registers_project_tools() -> None:
+    tool_names = {tool.name for tool in server_module.mcp._tool_manager.list_tools()}
+    assert "create_project" in tool_names
+    assert "open_project" in tool_names
+    assert "close_project" in tool_names
+
+
+def test_create_project_tool_delegates(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    from vivado_mcp.projects import ProjectInfo, ProjectManager, ProjectOperationResult
+
+    expected = ProjectOperationResult(
+        success=True,
+        project=ProjectInfo(
+            name="counter",
+            path=str(tmp_path / "counter"),
+            part="xc7a35tcpg236-1",
+            xpr=str(tmp_path / "counter" / "counter.xpr"),
+        ),
+        vivado_version="2018.2",
+        message="Created Vivado project 'counter'.",
+    )
+
+    class StubManager(ProjectManager):
+        def create_project(self, name: str, path: str, part: str) -> ProjectOperationResult:
+            assert name == "counter"
+            assert part == "xc7a35tcpg236-1"
+            return expected
+
+    monkeypatch.setattr(server_module, "_build_project_manager", lambda: StubManager())
+    result = server_module.create_project(
+        name="counter",
+        path=str(tmp_path),
+        part="xc7a35tcpg236-1",
+    )
+    assert result["success"] is True
+    assert result["project"]["name"] == "counter"
