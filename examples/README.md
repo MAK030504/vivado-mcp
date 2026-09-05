@@ -8,26 +8,24 @@ It is almost never a Vivado problem at this stage.
 On Windows, do **not** rely on bare `python`. Use the full path to
 `python.exe` from the environment where you installed `vivado-mcp`.
 
-### 1. Find your Python
+### 1. Install into a venv, then use THAT Python in Cursor
 
-In PowerShell:
+`ModuleNotFoundError: No module named 'vivado_mcp'` means Cursor launched a
+Python that does not have the package. Install it, then point MCP at the
+venv interpreter:
 
 ```powershell
-where.exe python
+cd C:\Users\HP\...\vivado-mcp
+python -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install -U pip
+pip install -e .
 python -c "import sys; print(sys.executable)"
 python -c "import vivado_mcp; print(vivado_mcp.__file__)"
 ```
 
-If the last command fails, install the package first:
-
-```powershell
-cd C:\path\to\vivado-mcp
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -e .
-python -c "import vivado_mcp; print('ok', vivado_mcp.__file__)"
-```
-
+Both commands must succeed. Copy the printed `sys.executable` path into
+Cursor MCP `command`.
 ### 2. Cursor config (Windows)
 
 Replace the `command` value with the exact `python.exe` path from step 1.

@@ -45,11 +45,29 @@ retrieval are intentionally **not** implemented yet.
 
 ## Installation
 
-```bash
-git clone https://github.com/mak030504/vivado-mcp.git
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/MAK030504/vivado-mcp.git
 cd vivado-mcp
+git checkout cursor/vivado-mcp-milestone-1-c381
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+.\.venv\Scripts\activate
+python -m pip install -U pip
+pip install -e .
+python -c "import vivado_mcp; print(vivado_mcp.__file__)"
+```
+
+The last line must print a path under this repo. If you see
+`ModuleNotFoundError`, you are not using the venv Python yet.
+
+### Linux / macOS
+
+```bash
+git clone https://github.com/MAK030504/vivado-mcp.git
+cd vivado-mcp
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
