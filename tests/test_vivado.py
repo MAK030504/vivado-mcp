@@ -88,6 +88,37 @@ def test_explicit_missing_path_fails_cleanly(tmp_path: Path) -> None:
     assert str(missing) in (info.message or "")
 
 
+def test_start_menu_directory_path_is_rejected(tmp_path: Path) -> None:
+    start_menu = tmp_path / "Xilinx Design Tools" / "Vivado 2018.2"
+    start_menu.mkdir(parents=True)
+
+    info = Vivado(
+        Config(vivado_path=start_menu),
+        platform_name="Windows",
+    ).get_version()
+
+    assert info.installed is False
+    assert info.error == "vivado_not_found"
+    assert "directory" in (info.message or "").lower()
+    assert "Start Menu" in (info.message or "")
+    assert "vivado.bat" in (info.message or "")
+
+
+def test_windows_shortcut_path_is_rejected(tmp_path: Path) -> None:
+    shortcut = tmp_path / "Vivado 2018.2.lnk"
+    shortcut.write_bytes(b"shortcut")
+
+    info = Vivado(
+        Config(vivado_path=shortcut),
+        platform_name="Windows",
+    ).get_version()
+
+    assert info.installed is False
+    assert info.error == "vivado_not_found"
+    assert ".lnk" in (info.message or "")
+    assert "vivado.bat" in (info.message or "")
+
+
 def test_platform_detection_windows() -> None:
     vivado = Vivado(Config(), platform_name="Windows")
     assert vivado.platform_name == "windows"

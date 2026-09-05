@@ -167,7 +167,11 @@ class Vivado:
         candidates: list[Path] = []
 
         if self.config.vivado_path is not None:
-            candidates.append(self.config.vivado_path)
+            configured = self.config.vivado_path.expanduser()
+            configured_error = self._configured_path_error(configured)
+            if configured_error is not None:
+                raise VivadoNotFoundError(configured_error)
+            candidates.append(configured)
         else:
             candidates.extend(self._detect_candidates())
 
@@ -192,6 +196,27 @@ class Vivado:
         if tried:
             details = " Candidates checked: " + ", ".join(tried) + "."
         raise VivadoNotFoundError(_NOT_FOUND_HELP + details)
+
+    def _configured_path_error(self, path: Path) -> str | None:
+        """Return a specific error for unusable configured paths, else None."""
+        if path.suffix.lower() == ".lnk":
+            return (
+                f"VIVADO_PATH points to a Windows shortcut (.lnk): {path}. "
+                "Point VIVADO_PATH at the real Vivado launcher instead, usually "
+                r"C:\Xilinx\Vivado\2018.2\bin\vivado.bat. "
+                "Tip: right-click the Start Menu Vivado entry → More → Open file "
+                "location → open the shortcut Properties and copy the Target path."
+            )
+        if path.exists() and path.is_dir():
+            return (
+                f"VIVADO_PATH points to a directory, not the Vivado executable: "
+                f"{path}. "
+                "Do not use the Start Menu folder path. Set VIVADO_PATH to the "
+                r"vivado.bat file, typically C:\Xilinx\Vivado\2018.2\bin\vivado.bat "
+                "on Windows, or .../Vivado/2018.2/bin/vivado on Linux."
+            )
+        return None
+
 
     def run(
         self,
