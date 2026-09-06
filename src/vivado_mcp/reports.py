@@ -149,8 +149,15 @@ class VivadoReportParser:
             return None
         return summary
 
+    def parse_implementation_status(self, run_status: str) -> str:
+        """Map a Vivado ``impl_1`` STATUS string to a coarse MCP status."""
+        return classify_impl_run_status(run_status)
+
     def extract_errors_warnings(self, text: str) -> tuple[list[str], list[str]]:
-        """Extract concise ERROR / WARNING lines from Vivado log text."""
+        """Extract concise ERROR / WARNING lines from Vivado log text.
+
+        Warnings are collected separately and must not be treated as failures.
+        """
         errors: list[str] = []
         warnings: list[str] = []
         for line in text.splitlines():
@@ -273,6 +280,86 @@ def classify_synth_run_status(run_status: str) -> str:
     if "not started" in text or text == "n/a":
         return "not_started"
     return "unknown"
+
+
+def classify_impl_run_status(run_status: str) -> str:
+    """Map Vivado ``impl_1`` STATUS property to a coarse MCP status."""
+    text = (run_status or "").strip().lower()
+    if not text:
+        return "unknown"
+    if "error" in text or "fail" in text:
+        return "failed"
+    if "complete" in text:
+        return "completed"
+    if "cancel" in text:
+        return "cancelled"
+    if "running" in text or "queued" in text:
+        return "running"
+    if "not started" in text or text == "n/a":
+        return "not_started"
+    return "unknown"
+
+
+def classify_impl_failure(run_status: str, log_text: str = "") -> str:
+    """Classify an implementation failure into a more specific category.
+
+    Returns one of: ``placement_failure``, ``routing_failure``,
+    ``constraint_failure``, ``clocking_failure``, ``resource_exhaustion``,
+    ``implementation_tool_failure``, or ``implementation_failure``.
+    """
+    combined = f"{run_status}\n{log_text}".lower()
+    if any(
+        token in combined
+        for token in (
+            "place_design",
+            "placement",
+            "placer",
+            "could not place",
+            "failed to place",
+        )
+    ):
+        return "placement_failure"
+    if any(
+        token in combined
+        for token in (
+            "route_design",
+            "routing",
+            "router",
+            "unroutable",
+            "failed to route",
+            "could not route",
+        )
+    ):
+        return "routing_failure"
+    if any(
+        token in combined
+        for token in (
+            "constraint",
+            "xdc",
+            "set_property package_pin",
+            "invalid constraint",
+        )
+    ):
+        return "constraint_failure"
+    if any(
+        token in combined
+        for token in ("clock", "mmcm", "pll", "bufg", "clocking")
+    ) and ("error" in combined or "fail" in combined):
+        return "clocking_failure"
+    if any(
+        token in combined
+        for token in (
+            "overutilized",
+            "over-utilized",
+            "insufficient resources",
+            "does not fit",
+            "resource",
+        )
+    ):
+        return "resource_exhaustion"
+    if "opt_design" in combined or "phys_opt" in combined:
+        return "implementation_tool_failure"
+    return "implementation_failure"
 
 
 def _normalize_label(label: str) -> str:

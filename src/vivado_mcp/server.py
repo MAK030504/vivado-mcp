@@ -1,7 +1,8 @@
 """MCP server entrypoint for Vivado MCP.
 
-Tool handlers stay thin: they delegate to project/source/simulation/synthesis
-managers and the Vivado abstraction, returning structured results only.
+Tool handlers stay thin: they delegate to project/source/simulation/synthesis/
+implementation managers and the Vivado abstraction, returning structured
+results only.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from mcp.server import MCPServer
 
 from vivado_mcp import __version__
 from vivado_mcp.config import Config
+from vivado_mcp.implementation import ImplementationManager
 from vivado_mcp.projects import ProjectManager
 from vivado_mcp.simulation import SimulationManager
 from vivado_mcp.sources import SourceManager
@@ -29,8 +31,11 @@ mcp = MCPServer(
         "create_project / open_project / close_project for projects, "
         "create_rtl_file / add_source / remove_source / list_sources for RTL, "
         "create_testbench / run_simulation / get_simulation_status for RTL "
-        "simulation, and run_synthesis / get_utilization / get_timing for "
-        "synthesis reports. Add testbenches with add_source(..., fileset='sim_1'). "
+        "simulation, run_synthesis / get_utilization for synthesis, and "
+        "run_implementation / get_implementation_status / "
+        "get_implemented_utilization / get_timing for place-and-route. "
+        "get_timing prefers post-implementation timing when available. "
+        "Add testbenches with add_source(..., fileset='sim_1'). "
         "Users must provide their own licensed Vivado installation. There is "
         "no generic Tcl or shell execution tool."
     ),
@@ -55,6 +60,10 @@ def _build_simulation_manager() -> SimulationManager:
 
 def _build_synthesis_manager() -> SynthesisManager:
     return SynthesisManager(_build_vivado())
+
+
+def _build_implementation_manager() -> ImplementationManager:
+    return ImplementationManager(_build_vivado())
 
 
 @mcp.tool()
@@ -348,19 +357,80 @@ def get_utilization(project_path: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_timing(project_path: str) -> dict[str, Any]:
-    """Return structured post-synthesis timing summary if available.
+def run_implementation(project_path: str) -> dict[str, Any]:
+    """Run Vivado implementation (place & route) for a project in batch mode.
 
     Args:
         project_path: Path to the ``.xpr`` or project directory.
 
-    Post-synthesis timing is estimated and is **not** final implementation
-    timing. When constraints are missing, returns ``status: not_available``
-    with a clear reason rather than raising.
+    Requires a completed ``synth_1`` run. Does not automatically run synthesis.
+    Opens the project, launches ``impl_1``, waits for completion, writes
+    post-implementation utilization and timing reports under
+    ``.vivado_mcp/reports/``, then closes cleanly. Does not open the Vivado GUI.
+    """
+    logger.info("Tool invoked: run_implementation project=%s", project_path)
+    return (
+        _build_implementation_manager()
+        .run_implementation(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_implementation_status(project_path: str) -> dict[str, Any]:
+    """Return structured status for the implementation run (``impl_1``).
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Queries Vivado without launching a new implementation run.
+    """
+    logger.info(
+        "Tool invoked: get_implementation_status project=%s", project_path
+    )
+    return (
+        _build_implementation_manager()
+        .get_implementation_status(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_implemented_utilization(project_path: str) -> dict[str, Any]:
+    """Return structured post-implementation resource utilization.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Parses Vivado ``report_utilization`` for the completed ``impl_1`` run.
+    Missing device resources are returned as ``null``. Requires completed
+    implementation.
+    """
+    logger.info(
+        "Tool invoked: get_implemented_utilization project=%s", project_path
+    )
+    return (
+        _build_implementation_manager()
+        .get_implemented_utilization(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_timing(project_path: str) -> dict[str, Any]:
+    """Return structured timing summary (post-implementation when available).
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Prefers post-route timing after a successful implementation. Falls back to
+    post-synthesis timing (Milestone 5) when implementation timing is
+    unavailable. When constraints are missing, returns
+    ``status: not_available`` with a clear reason rather than inventing values.
     """
     logger.info("Tool invoked: get_timing project=%s", project_path)
     return (
-        _build_synthesis_manager()
+        _build_implementation_manager()
         .get_timing(project_path=project_path)
         .to_dict()
     )
