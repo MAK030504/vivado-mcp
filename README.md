@@ -393,7 +393,7 @@ modify a permanent `mcp_counter` project.
 2. **Milestone 2 — Project Management — COMPLETE**
 3. **Milestone 3 — RTL & Source Management — COMPLETE**
 4. **Milestone 4 — RTL Simulation — COMPLETE** (verified on Vivado 2018.2 / Windows)
-5. **Milestone 5 — Synthesis / Utilization / Timing — IN PROGRESS** (implementation + unit tests done; confirm on real Vivado 2018.2)
+5. **Milestone 5 — Synthesis / Utilization / Timing — COMPLETE** (verified on Vivado 2018.2 / Windows)
 6. **Milestone 6:** XDC constraint management
 7. **Milestone 7:** Implementation, bitstream, final timing
 8. **Later:** Higher-level agentic RTL/FPGA workflows
