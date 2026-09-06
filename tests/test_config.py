@@ -63,7 +63,11 @@ def test_blank_environment_values_are_treated_as_unset() -> None:
     assert config.workspace is None
 
 
-def test_expanduser_on_paths(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    monkeypatch.setenv("HOME", "/home/tester")
+def test_expanduser_on_paths(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    # Path.expanduser() uses HOME on Unix and USERPROFILE on Windows.
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
     config = Config.from_env(environ={ENV_VIVADO_PATH: "~/tools/vivado"})
-    assert config.vivado_path == Path("/home/tester/tools/vivado")
+    assert config.vivado_path == home / "tools" / "vivado"
