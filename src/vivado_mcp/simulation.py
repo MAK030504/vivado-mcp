@@ -422,7 +422,12 @@ def classify_simulation_status(
     marker_status: str = "",
     marker_error: str = "",
 ) -> str:
-    """Map Vivado log text to a discrete simulation status."""
+    """Map Vivado log text to a discrete simulation status.
+
+    Explicit MCP markers win over heuristic log scraping. Vivado often emits
+    ``WARNING: [VRFC ...]`` (for example missing timescale) even on a clean
+    pass; those must not override ``VIVADO_MCP_SIM_STATUS=passed``.
+    """
     lowered = text.lower()
     err_lower = marker_error.lower()
     combined = f"{lowered}\n{err_lower}"
@@ -430,6 +435,20 @@ def classify_simulation_status(
     if marker_status == STATUS_NO_SOURCES or "no simulation sources" in combined:
         return STATUS_NO_SOURCES
 
+    # Explicit success markers always win (ignore WARNING noise such as VRFC).
+    if marker_status in {STATUS_PASSED, STATUS_COMPLETED}:
+        return STATUS_PASSED
+
+    # Specific failure markers from our Tcl already carry the right status.
+    if marker_status in {
+        STATUS_COMPILE_ERROR,
+        STATUS_ELABORATE_ERROR,
+        STATUS_RUNTIME_ERROR,
+        STATUS_ASSERTION_FAILED,
+    }:
+        return marker_status
+
+    # Refine generic failures (or missing markers) from Vivado log text.
     if _looks_like_assertion_failure(combined):
         return STATUS_ASSERTION_FAILED
 
@@ -442,49 +461,37 @@ def classify_simulation_status(
     if _looks_like_runtime_error(combined):
         return STATUS_RUNTIME_ERROR
 
-    if marker_status in {STATUS_PASSED, STATUS_COMPLETED}:
-        return STATUS_PASSED
-
-    if marker_status in {
-        STATUS_COMPILE_ERROR,
-        STATUS_ELABORATE_ERROR,
-        STATUS_RUNTIME_ERROR,
-        STATUS_ASSERTION_FAILED,
-        STATUS_FAILED,
-    }:
-        return marker_status
-
-    if "error:" in combined or re.search(r"\berror\b", combined):
-        # Generic ERROR lines without a more specific classification.
-        if "vivado_mcp_status=ok" in combined and marker_status == STATUS_PASSED:
-            return STATUS_PASSED
+    if "error:" in combined or re.search(r"(?m)^\s*error(?:\s*:|\s+\[)", combined):
         return STATUS_FAILED
 
-    if marker_status == STATUS_PASSED or "vivado_mcp_status=ok" in combined:
+    if marker_status == STATUS_FAILED:
+        return STATUS_FAILED
+
+    if "vivado_mcp_status=ok" in combined:
         return STATUS_PASSED
 
-    return STATUS_FAILED if marker_status or "error" in combined else STATUS_FAILED
+    return STATUS_FAILED
 
 
 def _looks_like_assertion_failure(text: str) -> bool:
     patterns = (
         r"assertion\s+failed",
         r"\$fatal",
-        r"\$error",
+        r"(?m)^\s*error(?:\s*:|\s+\[).*\$error",
         r"error:\s+assertion",
-        r"assert\s*\(",
     )
     return any(re.search(pat, text) for pat in patterns)
 
 
 def _looks_like_compile_error(text: str) -> bool:
+    # Match ERROR-level compile diagnostics only — not WARNING: [VRFC ...].
     patterns = (
-        r"\[vrfc\b",
-        r"syntax error",
+        r"(?m)^\s*error(?:\s*:|\s+\[).*\[vrfc\b",
+        r"(?m)^\s*error(?:\s*:|\s+\[).*syntax error",
         r"compile\s+error",
         r"error while parsing",
         r"unexpected token",
-        r"module\s+\w+\s+is not defined",
+        r"(?m)^\s*error(?:\s*:|\s+\[).*module\s+\w+\s+is not defined",
     )
     return any(re.search(pat, text) for pat in patterns)
 

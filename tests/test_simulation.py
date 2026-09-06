@@ -281,6 +281,32 @@ def test_classify_compile_elaborate_assertion() -> None:
     )
 
 
+def test_classify_ignores_vrfc_warning_when_marker_passed() -> None:
+    """Regression: Vivado 2018.2 timescale WARNING must not override a pass."""
+    log = (
+        "WARNING: [VRFC 10-2263] Module counter has no timescale\n"
+        "MCP_SIM_PASS\n"
+        "$finish called at time : 96 ns\n"
+        "VIVADO_MCP_STATUS=OK\n"
+        "VIVADO_MCP_SIM_STATUS=passed\n"
+        "VIVADO_MCP_SIM_TOP=counter_tb\n"
+    )
+    assert classify_simulation_status(log, marker_status="passed") == STATUS_PASSED
+    parsed = parse_simulation_output(log)
+    assert parsed.status == STATUS_PASSED
+    assert parsed.errors == 0
+    assert parsed.warnings >= 1
+
+
+def test_classify_vrfc_warning_alone_is_not_compile_error() -> None:
+    assert (
+        classify_simulation_status(
+            "WARNING: [VRFC 10-2263] Module counter has no timescale\n"
+        )
+        != STATUS_COMPILE_ERROR
+    )
+
+
 def test_parse_simulation_output_counts() -> None:
     stdout = (
         "WARNING: [VRFC] unused signal\n"

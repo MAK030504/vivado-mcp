@@ -262,7 +262,7 @@ simulation, checks output, then cleans up. It does not modify a permanent
 1. **Milestone 1 — Version Detection — COMPLETE**
 2. **Milestone 2 — Project Management — COMPLETE**
 3. **Milestone 3 — RTL & Source Management — COMPLETE**
-4. **Milestone 4 — RTL Simulation — IN PROGRESS** (implementation + unit tests done; confirm with real Vivado 2018.2)
+4. **Milestone 4 — RTL Simulation — COMPLETE** (verified on Vivado 2018.2 / Windows)
 5. **Milestone 5:** XDC constraint management
 6. **Milestone 6:** Synthesis, implementation, bitstream
 7. **Milestone 7:** Timing / utilization / message reports
