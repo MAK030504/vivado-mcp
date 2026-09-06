@@ -108,7 +108,7 @@ def test_create_rtl_file_verilog_and_systemverilog(tmp_path: Path) -> None:
     )
     assert v_result.success is True
     assert v_result.source_path is not None
-    assert v_result.source_path.endswith("rtl/counter.v")
+    assert Path(v_result.source_path) == tmp_path / "rtl" / "counter.v"
     assert Path(v_result.source_path).read_text(encoding="utf-8") == (
         "module counter; endmodule\n"
     )
