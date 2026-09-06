@@ -136,3 +136,35 @@ class SimulationError(VivadoMCPError):
         self.status = status
         self.stdout = stdout
         self.stderr = stderr
+
+
+class SynthesisError(VivadoMCPError):
+    """Raised when Vivado synthesis fails or prerequisites are missing."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: str = "failed",
+        stdout: str = "",
+        stderr: str = "",
+    ) -> None:
+        super().__init__(message, code="synthesis_error")
+        self.status = status
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class SynthesisNotRunError(VivadoMCPError):
+    """Raised when a report is requested before synthesis has completed."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="synthesis_not_run")
+
+
+class ReportNotAvailableError(VivadoMCPError):
+    """Raised when a Vivado report cannot be produced or parsed."""
+
+    def __init__(self, message: str, *, status: str = "not_available") -> None:
+        super().__init__(message, code="report_not_available")
+        self.status = status

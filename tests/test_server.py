@@ -66,6 +66,13 @@ def test_mcp_server_registers_simulation_tools() -> None:
     assert "get_simulation_status" in tool_names
 
 
+def test_mcp_server_registers_synthesis_tools() -> None:
+    tool_names = {tool.name for tool in server_module.mcp._tool_manager.list_tools()}
+    assert "run_synthesis" in tool_names
+    assert "get_utilization" in tool_names
+    assert "get_timing" in tool_names
+
+
 def test_create_project_tool_delegates(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     from vivado_mcp.projects import ProjectInfo, ProjectManager, ProjectOperationResult
 
