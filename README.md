@@ -476,6 +476,9 @@ timing `"met"` unless the timing report says so.
   constraints
 - Implementation can take much longer than synthesis; timeouts are configurable
   and return `status: timeout`
+- Requires a Vivado license that includes the **Implementation** feature for the
+  chosen device (WebPACK covers many Artix-7 parts including `xc7a35t`, but a
+  missing/locked license or out-of-memory condition will fail place/route)
 - Bitstream generation and board programming are intentionally out of scope
 - No automatic timing optimization or RTL rewriting
 

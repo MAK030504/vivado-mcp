@@ -17,6 +17,7 @@ from vivado_mcp.implementation import (
     ImplementationManager,
 )
 from vivado_mcp.projects import ProjectManager
+from vivado_mcp.reports import is_environment_impl_failure
 from vivado_mcp.sources import SourceManager
 from vivado_mcp.synthesis import STATUS_COMPLETED as SYNTH_COMPLETED
 from vivado_mcp.synthesis import SynthesisManager
@@ -55,6 +56,70 @@ def _cleanup_project_tree(parent: Path, name: str) -> None:
             leftover.unlink(missing_ok=True)
     for folder in ("rtl", "sim", ".vivado_mcp"):
         shutil.rmtree(parent / folder, ignore_errors=True)
+
+
+def _skip_if_environment_failure(impl_result: object) -> None:
+    """Skip when Vivado host lacks Implementation license or runs out of memory."""
+    failure_kind = getattr(impl_result, "failure_kind", None)
+    log_summary = getattr(impl_result, "log_summary", None) or ""
+    message = getattr(impl_result, "message", None) or ""
+    combined = f"{message}\n{log_summary}"
+    if is_environment_impl_failure(failure_kind, combined):
+        pytest.skip(
+            "Vivado implementation unavailable on this host "
+            f"(failure_kind={failure_kind!r}). "
+            "Check Implementation license for the device and free memory, "
+            "then re-run. Synthesis/blocked-path checks already passed."
+        )
+
+
+@pytest.mark.integration
+def test_real_vivado_implementation_blocked_without_synth(tmp_path: Path) -> None:
+    """Implementation must refuse to run before synthesis completes."""
+    if not _vivado_available():
+        pytest.skip("Vivado is not installed on this machine")
+
+    vivado = Vivado(Config.from_env())
+    projects = ProjectManager(vivado)
+    sources = SourceManager(vivado)
+    implementation = ImplementationManager(vivado)
+
+    parent = tmp_path / "vivado_mcp_impl_blocked_it"
+    parent.mkdir()
+    project_name = "impl_blocked"
+
+    try:
+        created = projects.create_project(
+            name=project_name,
+            path=str(parent),
+            part="xc7a35tcpg236-1",
+        )
+        assert created.success is True, created.error
+        assert created.project is not None
+        project_path = created.project.xpr or created.project.path
+
+        rtl = sources.create_rtl_file(
+            project_path=str(project_path),
+            filename="counter.v",
+            code=COUNTER_RTL,
+            language="verilog",
+        )
+        assert rtl.success is True, rtl.error
+        assert rtl.source_path is not None
+
+        added = sources.add_source(
+            project_path=str(project_path),
+            source_path=rtl.source_path,
+            fileset="sources_1",
+        )
+        assert added.success is True, added.error
+
+        blocked = implementation.run_implementation(str(project_path))
+        assert blocked.success is False
+        assert blocked.status == STATUS_BLOCKED
+        assert "Synthesis must complete" in (blocked.reason or blocked.message or "")
+    finally:
+        _cleanup_project_tree(parent, project_name)
 
 
 @pytest.mark.integration
@@ -102,19 +167,19 @@ def test_real_vivado_implementation_workflow(tmp_path: Path) -> None:
         )
         assert added.success is True, added.error
 
-        # Probe blocked-before-synth on a fresh state, then synthesize once.
-        # A short pause helps Windows release any leftover Vivado .lck files.
-        blocked = implementation.run_implementation(str(project_path))
-        assert blocked.success is False
-        assert blocked.status == STATUS_BLOCKED
-        assert "Synthesis must complete" in (blocked.reason or blocked.message or "")
-        time.sleep(1.5)
-
         synth = synthesis.run_synthesis(str(project_path))
         assert synth.success is True, (synth.error, synth.log_summary)
         assert synth.status == SYNTH_COMPLETED
-        time.sleep(1.0)
+        time.sleep(1.5)
+
         impl = implementation.run_implementation(str(project_path))
+        if not impl.success:
+            _skip_if_environment_failure(impl)
+            # One retry for transient license checkout / memory pressure.
+            time.sleep(3.0)
+            impl = implementation.run_implementation(str(project_path))
+            if not impl.success:
+                _skip_if_environment_failure(impl)
         assert impl.success is True, (impl.error, impl.log_summary, impl.failure_kind)
         assert impl.status == STATUS_COMPLETED
 

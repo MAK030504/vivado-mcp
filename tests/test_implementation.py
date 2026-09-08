@@ -406,6 +406,17 @@ def test_classify_impl_failure_kinds() -> None:
         classify_impl_failure("ERROR", "invalid constraint in xdc")
         == "constraint_failure"
     )
+    assert (
+        classify_impl_failure(
+            "place_design ERROR",
+            "ERROR: get a license for feature 'Implementation' and/or device 'xc7a35t'",
+        )
+        == "license_failure"
+    )
+    assert (
+        classify_impl_failure("place_design ERROR", "Caught exception 'Out of memory'")
+        == "resource_exhaustion"
+    )
 
 
 def test_malformed_and_missing_reports_do_not_crash(tmp_path: Path) -> None:
