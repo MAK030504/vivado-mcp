@@ -101,7 +101,13 @@ def test_build_open_and_close_tcl() -> None:
     xpr = Path("/home/user/fpga projects/counter/counter.xpr")
     open_script = build_open_project_tcl(xpr_path=xpr)
     close_script = build_close_project_tcl(xpr_path=xpr)
-    assert "open_project {/home/user/fpga projects/counter/counter.xpr}" in open_script
+    assert "{/home/user/fpga projects/counter/counter.xpr}" in open_script
+    assert "open_project" in open_script
     assert "close_project" in open_script
-    assert "open_project {/home/user/fpga projects/counter/counter.xpr}" in close_script
+    assert "{/home/user/fpga projects/counter/counter.xpr}" in close_script
+    assert "open_project" in close_script
     assert "VIVADO_MCP_CLOSED=1" in close_script
+    # Stale lock cleanup / retry path for Windows reliability.
+    assert ".lck" in open_script
+    assert ".lck" in close_script
+    assert "file delete -force" in close_script

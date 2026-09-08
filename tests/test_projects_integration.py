@@ -30,7 +30,7 @@ def test_real_vivado_create_open_close_project(tmp_path: Path) -> None:
     parent.mkdir()
 
     created = manager.create_project(
-        name="mcp_counter",
+        name="proj_it_demo",
         path=str(parent),
         part="xc7a35tcpg236-1",
     )
@@ -46,4 +46,9 @@ def test_real_vivado_create_open_close_project(tmp_path: Path) -> None:
     assert closed.success is True, closed.error
 
     # Cleanup project tree created by Vivado.
-    shutil.rmtree(parent / "mcp_counter", ignore_errors=True)
+    shutil.rmtree(parent / "proj_it_demo", ignore_errors=True)
+    for leftover in parent.glob("proj_it_demo*"):
+        if leftover.is_dir():
+            shutil.rmtree(leftover, ignore_errors=True)
+        else:
+            leftover.unlink(missing_ok=True)
