@@ -80,8 +80,11 @@ class FakeVivado(Vivado):
         elif "VIVADO_MCP_CLOSED=1" in script:
             stdout = "VIVADO_MCP_STATUS=OK\nVIVADO_MCP_CLOSED=1\n"
         else:
-            # open_project {xpr}
-            xpr_text = script.split("open_project {", 1)[1].split("}", 1)[0]
+            # open_project via set _mcp_xpr {path} ... open_project $_mcp_xpr
+            if "set _mcp_xpr {" in script:
+                xpr_text = script.split("set _mcp_xpr {", 1)[1].split("}", 1)[0]
+            else:
+                xpr_text = script.split("open_project {", 1)[1].split("}", 1)[0]
             xpr = Path(xpr_text)
             stdout = (
                 f"VIVADO_MCP_STATUS=OK\n"

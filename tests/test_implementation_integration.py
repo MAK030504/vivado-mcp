@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -101,15 +102,18 @@ def test_real_vivado_implementation_workflow(tmp_path: Path) -> None:
         )
         assert added.success is True, added.error
 
+        # Probe blocked-before-synth on a fresh state, then synthesize once.
+        # A short pause helps Windows release any leftover Vivado .lck files.
         blocked = implementation.run_implementation(str(project_path))
         assert blocked.success is False
         assert blocked.status == STATUS_BLOCKED
         assert "Synthesis must complete" in (blocked.reason or blocked.message or "")
+        time.sleep(1.5)
 
         synth = synthesis.run_synthesis(str(project_path))
         assert synth.success is True, (synth.error, synth.log_summary)
         assert synth.status == SYNTH_COMPLETED
-
+        time.sleep(1.0)
         impl = implementation.run_implementation(str(project_path))
         assert impl.success is True, (impl.error, impl.log_summary, impl.failure_kind)
         assert impl.status == STATUS_COMPLETED
