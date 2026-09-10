@@ -411,10 +411,23 @@ def test_timeout_is_reported(tmp_path: Path) -> None:
     assert "timed out" in (info.message or "").lower()
 
 
-def test_non_executable_file_rejected(tmp_path: Path) -> None:
+def test_non_executable_file_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     path = tmp_path / "vivado"
     path.write_text("not executable", encoding="utf-8")
     os.chmod(path, 0o644)
+
+    # Windows does not honor Unix execute bits via os.access(X_OK), so force
+    # a non-executable result while still exercising the Linux validation path.
+    real_access = os.access
+
+    def _access(target: object, mode: int, *args: object, **kwargs: object) -> bool:
+        if mode == os.X_OK and Path(str(target)).resolve() == path.resolve():
+            return False
+        return bool(real_access(target, mode, *args, **kwargs))
+
+    monkeypatch.setattr(os, "access", _access)
 
     vivado = Vivado(Config(vivado_path=path), platform_name="Linux")
     with pytest.raises(VivadoNotFoundError):

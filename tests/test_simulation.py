@@ -128,7 +128,7 @@ def test_create_testbench_verilog_and_systemverilog(tmp_path: Path) -> None:
     assert v_result.file is not None
     assert v_result.file.type == "testbench"
     assert v_result.file.language == "verilog"
-    assert v_result.file.path.endswith("sim/counter_tb.v")
+    assert Path(v_result.file.path) == tmp_path / "sim" / "counter_tb.v"
     assert Path(v_result.file.path).read_text(encoding="utf-8") == (
         "module counter_tb; endmodule\n"
     )
@@ -142,7 +142,7 @@ def test_create_testbench_verilog_and_systemverilog(tmp_path: Path) -> None:
     assert sv_result.success is True
     assert sv_result.file is not None
     assert sv_result.file.language == "systemverilog"
-    assert sv_result.file.path.endswith("sim/tb.sv")
+    assert Path(sv_result.file.path) == tmp_path / "sim" / "tb.sv"
 
 
 def test_create_testbench_rejects_existing_and_traversal(tmp_path: Path) -> None:

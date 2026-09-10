@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from vivado_mcp.reports import (
     VivadoReportParser,
+    classify_impl_failure,
+    classify_impl_run_status,
     classify_synth_run_status,
 )
 
@@ -176,3 +178,37 @@ def test_classify_synth_run_status() -> None:
     assert classify_synth_run_status("synth_design ERROR") == "failed"
     assert classify_synth_run_status("Not started") == "not_started"
     assert classify_synth_run_status("") == "unknown"
+
+
+def test_classify_impl_run_status() -> None:
+    assert classify_impl_run_status("route_design Complete!") == "completed"
+    assert classify_impl_run_status("place_design ERROR") == "failed"
+    assert classify_impl_run_status("Not started") == "not_started"
+    assert classify_impl_run_status("") == "unknown"
+    assert (
+        VivadoReportParser().parse_implementation_status("route_design Complete!")
+        == "completed"
+    )
+
+
+def test_classify_impl_failure() -> None:
+    assert (
+        classify_impl_failure("place_design ERROR", "could not place")
+        == "placement_failure"
+    )
+    assert (
+        classify_impl_failure("route_design ERROR", "failed to route")
+        == "routing_failure"
+    )
+    assert classify_impl_failure("ERROR", "something else") == "implementation_failure"
+    assert (
+        classify_impl_failure(
+            "place_design ERROR",
+            "get a license for feature 'Implementation'",
+        )
+        == "license_failure"
+    )
+    assert (
+        classify_impl_failure("place_design ERROR", "Out of memory")
+        == "resource_exhaustion"
+    )

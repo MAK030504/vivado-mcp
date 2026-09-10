@@ -11,9 +11,11 @@ import os
 import platform
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from collections.abc import Callable, Mapping, Sequence
@@ -610,11 +612,90 @@ def _default_runner(
     cwd: str | None,
     env: Mapping[str, str],
 ) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        list(command),
-        capture_output=True,
-        timeout=timeout,
-        cwd=cwd,
-        env=dict(env),
-        check=False,
+    """Run a Vivado command, killing the process group on timeout when possible.
+
+    Vivado often spawns child processes. On POSIX we start a new session so a
+    timeout can terminate the whole group. On Windows we fall back to
+    ``taskkill /T`` when available so orphans are less likely.
+    """
+    popen_kwargs: dict[str, Any] = {
+        "args": list(command),
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "cwd": cwd,
+        "env": dict(env),
+    }
+    if sys.platform == "win32":
+        # CREATE_NEW_PROCESS_GROUP lets Ctrl-Break style signals target the tree.
+        popen_kwargs["creationflags"] = getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+        )
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    proc = subprocess.Popen(**popen_kwargs)
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_process_tree(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            stdout = exc.stdout or b""
+            stderr = exc.stderr or b""
+        raise subprocess.TimeoutExpired(
+            cmd=list(command),
+            timeout=timeout if timeout is not None else 0,
+            output=stdout,
+            stderr=stderr,
+        ) from None
+
+    return subprocess.CompletedProcess(
+        args=list(command),
+        returncode=int(proc.returncode if proc.returncode is not None else -1),
+        stdout=stdout,
+        stderr=stderr,
     )
+
+
+def _terminate_process_tree(proc: subprocess.Popen[bytes]) -> None:
+    """Best-effort terminate of Vivado and its children after a timeout."""
+    if proc.poll() is not None:
+        return
+
+    if sys.platform == "win32":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                capture_output=True,
+                check=False,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        return
+
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        try:
+            proc.terminate()
+        except OSError:
+            pass
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            return
+        time.sleep(0.2)
+
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        try:
+            proc.kill()
+        except OSError:
+            pass

@@ -301,7 +301,8 @@ class SynthesisManager:
                     status=STATUS_NOT_AVAILABLE,
                     reason=(
                         "No timing constraints / timing data found after synthesis. "
-                        "Implementation timing will be added in a later milestone."
+                        "Add XDC constraints and/or run implementation for "
+                        "post-route timing via get_timing."
                     ),
                     project_path=str(project_dir),
                     report_path=str(report_path),

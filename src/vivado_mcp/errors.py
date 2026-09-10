@@ -168,3 +168,27 @@ class ReportNotAvailableError(VivadoMCPError):
     def __init__(self, message: str, *, status: str = "not_available") -> None:
         super().__init__(message, code="report_not_available")
         self.status = status
+
+
+class ImplementationError(VivadoMCPError):
+    """Raised when Vivado implementation fails or prerequisites are missing."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: str = "failed",
+        stdout: str = "",
+        stderr: str = "",
+    ) -> None:
+        super().__init__(message, code="implementation_error")
+        self.status = status
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class ImplementationNotRunError(VivadoMCPError):
+    """Raised when an implementation report is requested before impl completes."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="implementation_not_run")
