@@ -38,7 +38,7 @@ Downloaded for FYP exploration: severity classification, segmentation, TBSA esti
 | **Path** | `huggingface/MassHumanBurns/` |
 | **Source** | https://huggingface.co/datasets/HLSS/MassHumanBurns |
 | **Contents** | `images.7z` (~22 GB), `burn_masks.7z`, `full_masks.7z`, `labels.npy`, `gender.json` |
-| **Extracted** | Masks extracted under `*_extracted/`; images archive may still be extracting |
+| **Extracted** | Full: **320,000** images under `images_extracted/` (~23 GB) + mask folders under `*_extracted/` |
 | **Use for** | TBSA / burned-area estimation (synthetic bodies, not real wounds) |
 
 ### 4. Hugging Face — HSR_Burns (TBSA validation)
