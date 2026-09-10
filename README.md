@@ -15,7 +15,7 @@ AI Client (Cursor, etc.)
    Vivado MCP Server
         │
         ▼
-  ProjectManager / SourceManager / SimulationManager
+  ProjectManager / SourceManager / SimulationManager / SynthesisManager
         │
         ▼
      Vivado abstraction
@@ -30,7 +30,7 @@ AI Client (Cursor, etc.)
 You must have your own valid Vivado installation and license. This project only
 talks to whatever Vivado executable you configure.
 
-## Current capabilities (Milestone 4)
+## Current capabilities (Milestone 5)
 
 | Tool | Description |
 |------|-------------|
@@ -45,12 +45,17 @@ talks to whatever Vivado executable you configure.
 | `create_testbench` | Create a `.v` / `.sv` testbench under the project's `sim/` folder |
 | `run_simulation` | Run RTL behavioral simulation with XSim in batch mode |
 | `get_simulation_status` | Return structured status for the most recent simulation |
+| `run_synthesis` | Run Vivado synthesis (`synth_1`) in batch mode |
+| `get_utilization` | Return structured post-synthesis resource utilization |
+| `get_timing` | Return structured post-synthesis timing summary (if available) |
 
 Supported RTL languages: **Verilog** (`.v`) and **SystemVerilog** (`.sv`).
 
-Not implemented yet: XDC constraints, synthesis, implementation, bitstream
-generation, timing/utilization reports, waveform UI, RTL linting, or arbitrary
-Tcl execution.
+Not implemented yet: XDC constraints, implementation / place-and-route,
+bitstream generation, waveform UI, RTL linting, or arbitrary Tcl execution.
+
+**Note:** Post-synthesis timing is estimated. Final implementation timing will
+come in a later milestone.
 
 ## Requirements
 
@@ -67,7 +72,7 @@ Tcl execution.
 git clone https://github.com/mak030504/vivado-mcp.git
 cd C:\Users\HP\vivado-mcp
 git fetch
-git checkout cursor/vivado-mcp-milestone-4-c381
+git checkout cursor/vivado-mcp-milestone-5-c381
 .\.venv\Scripts\activate
 pip install -e .
 python -c "import vivado_mcp; print(vivado_mcp.__version__)"
@@ -219,6 +224,128 @@ get_simulation_status(
 A good testbench should generate a clock, assert/release reset, run for several
 cycles, print deterministic `$display` output, then `$finish`.
 
+## Synthesis tools (Milestone 5)
+
+### `run_synthesis`
+
+Runs Vivado synthesis (`synth_1`) in batch mode, then writes utilization and
+timing-summary reports under `{project}/.vivado_mcp/reports/`.
+
+```text
+run_synthesis(
+  project_path="C:\\Users\\HP\\Documents\\VivadoProjects\\mcp_temp_synth.xpr"
+)
+```
+
+Example success response:
+
+```json
+{
+  "success": true,
+  "status": "completed",
+  "message": "Synthesis completed successfully",
+  "project": "...",
+  "top_module": "counter",
+  "log_summary": "...",
+  "errors": [],
+  "warnings": []
+}
+```
+
+Statuses include: `not_started`, `running`, `completed`, `failed`, `cancelled`,
+`unknown`. Warnings alone do not mark synthesis as failed.
+
+Prerequisites: project exists, design sources are present, and a top module is
+set on `sources_1`.
+
+### `get_utilization`
+
+Returns structured resource utilization after a successful synthesis.
+
+```text
+get_utilization(
+  project_path="C:\\Users\\HP\\Documents\\VivadoProjects\\mcp_temp_synth.xpr"
+)
+```
+
+Example:
+
+```json
+{
+  "success": true,
+  "status": "available",
+  "resources": {
+    "lut": {"used": 12, "available": 20800, "utilization_percent": 0.06},
+    "ff": {"used": 8, "available": 41600, "utilization_percent": 0.02},
+    "bram": {"used": 0, "available": 50, "utilization_percent": 0.0},
+    "dsp": {"used": 0, "available": 90, "utilization_percent": 0.0},
+    "io": {"used": 3, "available": 106, "utilization_percent": 2.83},
+    "bufg": {"used": 1, "available": 32, "utilization_percent": 3.13}
+  },
+  "report_path": ".../.vivado_mcp/reports/utilization.rpt"
+}
+```
+
+Resource names vary by FPGA family. Missing resources are returned as `null`
+instead of failing the request.
+
+If synthesis has not been run:
+
+```json
+{
+  "success": true,
+  "status": "not_available",
+  "reason": "Synthesis has not completed for this project. Call run_synthesis first."
+}
+```
+
+### `get_timing`
+
+Returns a post-synthesis timing summary when Vivado can produce one.
+
+```text
+get_timing(
+  project_path="C:\\Users\\HP\\Documents\\VivadoProjects\\mcp_temp_synth.xpr"
+)
+```
+
+Example when timing data exists:
+
+```json
+{
+  "success": true,
+  "status": "available",
+  "timing": {
+    "wns_ns": 1.42,
+    "tns_ns": 0.0,
+    "failing_endpoints": 0,
+    "status": "met"
+  }
+}
+```
+
+Without timing constraints, Vivado often cannot produce meaningful post-synth
+timing. In that case:
+
+```json
+{
+  "success": true,
+  "status": "not_available",
+  "reason": "No timing constraints / timing data found after synthesis. Implementation timing will be added in a later milestone."
+}
+```
+
+**Important:** Synthesis timing ≠ final implementation timing.
+
+### Example synthesis workflow
+
+1. Create a **temporary** project (do not modify permanent `mcp_counter`)
+2. `create_rtl_file` + `add_source` for design RTL
+3. `run_synthesis`
+4. `get_utilization`
+5. `get_timing`
+6. Delete the temporary project
+
 ## Security
 
 - No unrestricted shell or Tcl execution through MCP
@@ -227,6 +354,8 @@ cycles, print deterministic `$display` output, then `$finish`.
 - Existing files are never silently overwritten
 - `remove_source` does not delete disk files
 - `simulation_time` is validated; Tcl injection is rejected
+- Synthesis/report tools only run controlled Vivado flows (`synth_1`,
+  `report_utilization`, `report_timing_summary`)
 - This project does not assist with license/DRM bypasses
 
 ## Testing
@@ -242,20 +371,21 @@ Vivado is unavailable:
 pytest -m integration
 ```
 
-On a machine with Vivado 2018.2 installed, the simulation integration test
-creates a temporary project, builds a counter + testbench, runs 100ns of
-simulation, checks output, then cleans up. It does not modify a permanent
-`mcp_counter` project.
+On a machine with Vivado 2018.2 installed, integration tests create temporary
+projects for simulation and synthesis workflows, then clean up. They do not
+modify a permanent `mcp_counter` project.
 
 ## Current limitations
 
-- No XDC / synth / impl / bitstream tools yet
+- No XDC constraint tools yet
+- No implementation / place-and-route / bitstream tools yet
+- Post-synthesis timing is estimated and often unavailable without constraints
 - No waveform visualization
 - No automatic RTL debugging or modification
 - No RTL syntax checking or linting beyond Vivado's own messages
 - No persistent Vivado session across MCP calls
 - macOS is not a supported Vivado host
-- Simulation status classification is best-effort from Vivado logs
+- Utilization/timing parsers are best-effort across Vivado report formats
 
 ## Roadmap
 
@@ -263,9 +393,9 @@ simulation, checks output, then cleans up. It does not modify a permanent
 2. **Milestone 2 — Project Management — COMPLETE**
 3. **Milestone 3 — RTL & Source Management — COMPLETE**
 4. **Milestone 4 — RTL Simulation — COMPLETE** (verified on Vivado 2018.2 / Windows)
-5. **Milestone 5:** XDC constraint management
-6. **Milestone 6:** Synthesis, implementation, bitstream
-7. **Milestone 7:** Timing / utilization / message reports
+5. **Milestone 5 — Synthesis / Utilization / Timing — COMPLETE** (verified on Vivado 2018.2 / Windows)
+6. **Milestone 6:** XDC constraint management
+7. **Milestone 7:** Implementation, bitstream, final timing
 8. **Later:** Higher-level agentic RTL/FPGA workflows
 
 ## License

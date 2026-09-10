@@ -1,7 +1,7 @@
 """MCP server entrypoint for Vivado MCP.
 
-Tool handlers stay thin: they delegate to project/source/simulation managers
-and the Vivado abstraction, returning structured results only.
+Tool handlers stay thin: they delegate to project/source/simulation/synthesis
+managers and the Vivado abstraction, returning structured results only.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from vivado_mcp.config import Config
 from vivado_mcp.projects import ProjectManager
 from vivado_mcp.simulation import SimulationManager
 from vivado_mcp.sources import SourceManager
+from vivado_mcp.synthesis import SynthesisManager
 from vivado_mcp.vivado import Vivado
 
 logger = logging.getLogger(__name__)
@@ -27,8 +28,9 @@ mcp = MCPServer(
         "MCP server for AMD/Xilinx Vivado. Use get_vivado_version first, then "
         "create_project / open_project / close_project for projects, "
         "create_rtl_file / add_source / remove_source / list_sources for RTL, "
-        "and create_testbench / run_simulation / get_simulation_status for "
-        "RTL simulation. Add testbenches with add_source(..., fileset='sim_1'). "
+        "create_testbench / run_simulation / get_simulation_status for RTL "
+        "simulation, and run_synthesis / get_utilization / get_timing for "
+        "synthesis reports. Add testbenches with add_source(..., fileset='sim_1'). "
         "Users must provide their own licensed Vivado installation. There is "
         "no generic Tcl or shell execution tool."
     ),
@@ -49,6 +51,10 @@ def _build_source_manager() -> SourceManager:
 
 def _build_simulation_manager() -> SimulationManager:
     return SimulationManager(_build_vivado())
+
+
+def _build_synthesis_manager() -> SynthesisManager:
+    return SynthesisManager(_build_vivado())
 
 
 @mcp.tool()
@@ -299,6 +305,63 @@ def get_simulation_status(project_path: str) -> dict[str, Any]:
     return (
         _build_simulation_manager()
         .get_simulation_status(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def run_synthesis(project_path: str) -> dict[str, Any]:
+    """Run Vivado synthesis for a project in batch mode.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Opens the project, launches ``synth_1``, waits for completion, writes
+    utilization and timing-summary reports under ``.vivado_mcp/reports/``,
+    then closes cleanly. Does not open the Vivado GUI.
+    """
+    logger.info("Tool invoked: run_synthesis project=%s", project_path)
+    return (
+        _build_synthesis_manager()
+        .run_synthesis(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_utilization(project_path: str) -> dict[str, Any]:
+    """Return structured post-synthesis resource utilization.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Parses Vivado ``report_utilization`` output. Missing device resources are
+    returned as ``null`` rather than failing the whole request. Requires a
+    completed synthesis run.
+    """
+    logger.info("Tool invoked: get_utilization project=%s", project_path)
+    return (
+        _build_synthesis_manager()
+        .get_utilization(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_timing(project_path: str) -> dict[str, Any]:
+    """Return structured post-synthesis timing summary if available.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Post-synthesis timing is estimated and is **not** final implementation
+    timing. When constraints are missing, returns ``status: not_available``
+    with a clear reason rather than raising.
+    """
+    logger.info("Tool invoked: get_timing project=%s", project_path)
+    return (
+        _build_synthesis_manager()
+        .get_timing(project_path=project_path)
         .to_dict()
     )
 
