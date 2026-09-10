@@ -77,3 +77,24 @@ class InvalidPartError(VivadoMCPError):
 
     def __init__(self, message: str) -> None:
         super().__init__(message, code="invalid_part")
+
+
+class InvalidSourceError(VivadoMCPError):
+    """Raised when an RTL filename, language, or source path is invalid."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="invalid_source")
+
+
+class SourceAlreadyExistsError(VivadoMCPError):
+    """Raised when creating an RTL file that already exists on disk."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="source_already_exists")
+
+
+class SourceNotFoundError(VivadoMCPError):
+    """Raised when a source file is missing or not in the project."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="source_not_found")

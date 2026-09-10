@@ -15,7 +15,10 @@ AI Client (Cursor, etc.)
    Vivado MCP Server
         │
         ▼
-  ProjectManager / Vivado abstraction
+  ProjectManager / SourceManager
+        │
+        ▼
+     Vivado abstraction
         │
         ▼
      Vivado Tcl / batch CLI
@@ -27,7 +30,7 @@ AI Client (Cursor, etc.)
 You must have your own valid Vivado installation and license. This project only
 talks to whatever Vivado executable you configure.
 
-## Current capabilities (Milestone 2)
+## Current capabilities (Milestone 3)
 
 | Tool | Description |
 |------|-------------|
@@ -35,16 +38,23 @@ talks to whatever Vivado executable you configure.
 | `create_project` | Create a new Vivado project for a given FPGA part |
 | `open_project` | Open/verify an existing `.xpr` project in batch mode |
 | `close_project` | Close a project cleanly via batch-mode Tcl |
+| `create_rtl_file` | Create a `.v` / `.sv` file under the project's `rtl/` folder |
+| `add_source` | Add an existing RTL file to the Vivado project |
+| `remove_source` | Remove a source from the project (does **not** delete the file) |
+| `list_sources` | List design sources with path/type/library |
 
-Not implemented yet: RTL source management, XDC constraints, simulation,
-synthesis, implementation, bitstream generation, timing/utilization reports,
-or arbitrary Tcl execution.
+Supported RTL languages: **Verilog** (`.v`) and **SystemVerilog** (`.sv`).
+
+Not implemented yet: XDC constraints, simulation, synthesis, implementation,
+bitstream generation, timing/utilization reports, RTL linting, or arbitrary
+Tcl execution.
 
 ## Requirements
 
 - Python 3.11+
 - An MCP-compatible client (for example Cursor)
 - A local AMD/Xilinx Vivado installation (**Windows** or **Linux**)
+- Verified with **Vivado 2018.2** on Windows
 
 ## Installation
 
@@ -53,12 +63,11 @@ or arbitrary Tcl execution.
 ```powershell
 git clone https://github.com/MAK030504/vivado-mcp.git
 cd C:\Users\HP\vivado-mcp
-git checkout cursor/vivado-mcp-milestone-2-c381
-python -m venv .venv
+git fetch
+git checkout cursor/vivado-mcp-milestone-3-c381
 .\.venv\Scripts\activate
-python -m pip install -U pip
 pip install -e .
-python -c "import vivado_mcp; print(vivado_mcp.__file__)"
+python -c "import vivado_mcp; print(vivado_mcp.__version__)"
 ```
 
 ### Linux / macOS
@@ -73,31 +82,13 @@ pip install -e ".[dev]"
 
 ## Configuration
 
-Do **not** edit Python source to point at Vivado. Configure via environment
-variables (or your MCP client `env` block):
-
 | Variable | Purpose |
 |----------|---------|
-| `VIVADO_PATH` | Absolute path to the Vivado executable (`vivado.bat` / `vivado`) |
-| `VIVADO_VERSION` | Optional preferred version for auto-detection (e.g. `2018.2`) |
-| `VIVADO_WORKSPACE` | Optional default workspace directory (reserved for later use) |
+| `VIVADO_PATH` | Absolute path to `vivado.bat` / `vivado` |
+| `VIVADO_VERSION` | Optional preferred version (e.g. `2018.2`) |
+| `VIVADO_WORKSPACE` | Optional default workspace (reserved) |
 
-### Windows example
-
-```powershell
-$env:VIVADO_PATH = "D:\Softwares\Vivado\2018.2\bin\vivado.bat"
-$env:VIVADO_VERSION = "2018.2"
-```
-
-## Run the MCP server
-
-```bash
-vivado-mcp
-# or
-python -m vivado_mcp
-```
-
-## Configure in Cursor
+Cursor MCP config example:
 
 ```json
 {
@@ -114,88 +105,62 @@ python -m vivado_mcp
 }
 ```
 
-On Windows, `command` must be the full path to the venv `python.exe` where
-`vivado-mcp` is installed.
+Keep this MCP config the same across milestones unless the Python or Vivado
+path changes. After pulling new code, run `pip install -e .` and restart Cursor.
 
-## Tool usage
+## Tool examples
 
-### `get_vivado_version`
+### `create_rtl_file`
 
-Ask the agent to call `get_vivado_version`.
+Creates `{project_dir}/rtl/{filename}` and does **not** register it in Vivado
+yet.
 
-```json
-{
-  "installed": true,
-  "version": "2018.2",
-  "executable": "D:\\Softwares\\Vivado\\2018.2\\bin\\vivado.bat",
-  "platform": "windows",
-  "error": null,
-  "message": null
-}
+```text
+create_rtl_file(
+  project_path="C:\\Users\\HP\\Documents\\VivadoProjects\\mcp_counter.xpr",
+  filename="counter.v",
+  language="verilog",
+  code="module counter(input clk, output reg [3:0] q); ..."
+)
 ```
 
-### `create_project`
+### `add_source`
 
-Creates `{path}/{name}/{name}.xpr` for the given FPGA part. Never overwrites
-an existing project.
+```text
+add_source(
+  project_path="C:\\Users\\HP\\Documents\\VivadoProjects\\mcp_counter.xpr",
+  source_path="C:\\Users\\HP\\Documents\\VivadoProjects\\rtl\\counter.v"
+)
+```
 
-Example arguments:
-
-- `name`: `"counter"`
-- `path`: `"C:\\Users\\User Name\\Documents\\Vivado Projects"`
-- `part`: `"xc7a35tcpg236-1"`
-
-Success:
+### `list_sources`
 
 ```json
 {
   "success": true,
-  "project": {
-    "name": "counter",
-    "path": ".../counter",
-    "part": "xc7a35tcpg236-1",
-    "xpr": ".../counter/counter.xpr"
-  },
-  "vivado_version": "2018.2",
-  "message": "Created Vivado project 'counter'."
+  "sources": [
+    {
+      "path": ".../rtl/counter.v",
+      "type": "verilog",
+      "library": "xil_defaultlib"
+    }
+  ]
 }
 ```
 
-Error (already exists):
+### `remove_source`
 
-```json
-{
-  "success": false,
-  "error": {
-    "type": "ProjectAlreadyExistsError",
-    "code": "project_already_exists",
-    "message": "A Vivado project already exists at ..."
-  }
-}
-```
+Removes the file from the project file set only. The physical `.v` / `.sv`
+file remains on disk.
 
-### `open_project`
+## Security
 
-Opens an existing `.xpr` (or a project directory containing one) in batch mode,
-returns metadata, then closes so no GUI process remains.
-
-### `close_project`
-
-Opens the project if needed, closes it with Vivado Tcl, and exits batch mode.
-
-## Architecture
-
-| Module | Responsibility |
-|--------|----------------|
-| `server.py` | Thin MCP tool wrappers |
-| `projects.py` | Project create/open/close orchestration |
-| `tcl.py` | Safe Tcl script generation / path quoting |
-| `vivado.py` | Locate / validate / invoke Vivado; run batch Tcl |
-| `config.py` | Environment-based configuration |
-| `errors.py` | Typed error hierarchy |
-
-MCP handlers never spawn subprocesses directly. There is intentionally **no**
-generic `execute_tcl` / `execute_command` MCP tool.
+- No unrestricted shell or Tcl execution through MCP
+- Filenames are basenames only; `..` and path separators are rejected
+- RTL files are written only under the project `rtl/` directory
+- Existing RTL files are never silently overwritten
+- `remove_source` does not delete disk files
+- This project does not assist with license/DRM bypasses
 
 ## Testing
 
@@ -203,8 +168,8 @@ generic `execute_tcl` / `execute_command` MCP tool.
 pytest
 ```
 
-Unit tests do **not** require Vivado. Integration tests run only when Vivado is
-installed and are otherwise skipped:
+Unit tests do not require Vivado. Integration tests skip automatically when
+Vivado is unavailable:
 
 ```bash
 pytest -m integration
@@ -212,37 +177,21 @@ pytest -m integration
 
 ## Current limitations
 
-- No RTL source / XDC / sim / synth / impl / bitstream tools yet
-- No persistent Vivado session across MCP calls (each tool uses batch mode)
-- macOS is not a supported Vivado host target
-- Unusual installs should set `VIVADO_PATH` explicitly
+- No XDC / sim / synth / impl / bitstream tools yet
+- No RTL syntax checking or linting
+- No persistent Vivado session across MCP calls
+- macOS is not a supported Vivado host
 
 ## Roadmap
 
 1. **Milestone 1 (complete):** Vivado discovery and version reporting
 2. **Milestone 2 (complete):** Project create / open / close
-3. **Milestone 3:** RTL source add/remove
+3. **Milestone 3 (complete):** RTL source create / add / remove / list
 4. **Milestone 4:** XDC constraint management
 5. **Milestone 5:** Simulation
 6. **Milestone 6:** Synthesis, implementation, bitstream
-7. **Milestone 7:** Timing / utilization / message reports and debug helpers
+7. **Milestone 7:** Timing / utilization / message reports
 8. **Later:** Higher-level agentic RTL/FPGA workflows
-
-## Security
-
-- No unrestricted shell execution through MCP
-- No generic Tcl execution tool
-- Paths and project names are validated before use
-- Existing projects are never silently overwritten
-- This project does not implement or assist with license, DRM, or activation bypasses
-
-## Development
-
-```bash
-pip install -e ".[dev]"
-pytest
-python -m vivado_mcp
-```
 
 ## License
 
