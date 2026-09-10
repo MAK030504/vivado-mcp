@@ -112,8 +112,8 @@ Also downloaded related Kaggle classification set: `kaggle-last-databurn/` (~1.3
 
 | Module | Start with |
 |---|---|
-| Severity / depth detection | `kaggle-skin-burn` (+ later doctor-validated subset) |
-| Burn region segmentation | Request EBIS; meanwhile FUSeg for pipeline practice |
+| Severity / depth detection | `kaggle-skin-burn` + `roboflow/skin-burns-4yoo2` (+ doctor-validated subset) |
+| Burn region segmentation | Request EBIS; practice with `roboflow/pfa-hfzdi-coco-seg` / FUSeg |
 | TBSA / area | `MassHumanBurns` + `HSR_Burns` |
 | Recovery monitoring | **Local Burns Center longitudinal collection only** |
 | Extra clinical texture | `kaggle-human-skin-burns` (needs labeling) |
