@@ -201,3 +201,14 @@ def test_classify_impl_failure() -> None:
         == "routing_failure"
     )
     assert classify_impl_failure("ERROR", "something else") == "implementation_failure"
+    assert (
+        classify_impl_failure(
+            "place_design ERROR",
+            "get a license for feature 'Implementation'",
+        )
+        == "license_failure"
+    )
+    assert (
+        classify_impl_failure("place_design ERROR", "Out of memory")
+        == "resource_exhaustion"
+    )

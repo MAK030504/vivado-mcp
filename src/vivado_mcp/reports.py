@@ -303,11 +303,41 @@ def classify_impl_run_status(run_status: str) -> str:
 def classify_impl_failure(run_status: str, log_text: str = "") -> str:
     """Classify an implementation failure into a more specific category.
 
-    Returns one of: ``placement_failure``, ``routing_failure``,
-    ``constraint_failure``, ``clocking_failure``, ``resource_exhaustion``,
-    ``implementation_tool_failure``, or ``implementation_failure``.
+    Returns one of: ``license_failure``, ``resource_exhaustion``,
+    ``placement_failure``, ``routing_failure``, ``constraint_failure``,
+    ``clocking_failure``, ``implementation_tool_failure``, or
+    ``implementation_failure``.
+
+    License / out-of-memory checks run before placement/routing so a
+    ``place_design ERROR`` caused by missing Implementation license is not
+    mis-labeled as a placer bug.
     """
     combined = f"{run_status}\n{log_text}".lower()
+    if any(
+        token in combined
+        for token in (
+            "get a license for feature",
+            "no license",
+            "license for feature 'implementation'",
+            "feature 'implementation'",
+            "licensing error",
+            "license_not_found",
+            "checkout of feature",
+        )
+    ):
+        return "license_failure"
+    if any(
+        token in combined
+        for token in (
+            "out of memory",
+            "out-of-memory",
+            "insufficient memory",
+            "memory allocation failed",
+            "std::bad_alloc",
+            "cannot allocate memory",
+        )
+    ):
+        return "resource_exhaustion"
     if any(
         token in combined
         for token in (
@@ -353,13 +383,24 @@ def classify_impl_failure(run_status: str, log_text: str = "") -> str:
             "over-utilized",
             "insufficient resources",
             "does not fit",
-            "resource",
         )
     ):
         return "resource_exhaustion"
     if "opt_design" in combined or "phys_opt" in combined:
         return "implementation_tool_failure"
     return "implementation_failure"
+
+
+def is_environment_impl_failure(failure_kind: str | None, log_text: str = "") -> bool:
+    """Return True when failure is due to host license/memory, not design bugs."""
+    kind = (failure_kind or "").lower()
+    if kind in {"license_failure", "resource_exhaustion"}:
+        return True
+    combined = log_text.lower()
+    return classify_impl_failure("", combined) in {
+        "license_failure",
+        "resource_exhaustion",
+    }
 
 
 def _normalize_label(label: str) -> str:

@@ -476,6 +476,9 @@ timing `"met"` unless the timing report says so.
   constraints
 - Implementation can take much longer than synthesis; timeouts are configurable
   and return `status: timeout`
+- Requires a Vivado license that includes the **Implementation** feature for the
+  chosen device (WebPACK covers many Artix-7 parts including `xc7a35t`, but a
+  missing/locked license or out-of-memory condition will fail place/route)
 - Bitstream generation and board programming are intentionally out of scope
 - No automatic timing optimization or RTL rewriting
 
@@ -528,7 +531,7 @@ up. They do not modify a permanent `mcp_counter` project.
 3. **Milestone 3 — RTL & Source Management — COMPLETE**
 4. **Milestone 4 — RTL Simulation — COMPLETE** (verified on Vivado 2018.2 / Windows)
 5. **Milestone 5 — Synthesis / Utilization / Timing — COMPLETE** (verified on Vivado 2018.2 / Windows)
-6. **Milestone 6 — Implementation / Place-and-Route — COMPLETE** (unit/integration tests; verify on Vivado 2018.2 / Windows)
+6. **Milestone 6 — Implementation / Place-and-Route — COMPLETE** (verified on Vivado 2018.2 / Windows)
 7. **Milestone 7:** XDC constraint management
 8. **Milestone 8:** Bitstream generation and programming
 9. **Later:** Higher-level agentic RTL/FPGA workflows
