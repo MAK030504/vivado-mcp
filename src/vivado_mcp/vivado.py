@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from collections.abc import Callable, Mapping, Sequence
@@ -433,6 +434,40 @@ class Vivado:
                 stderr=result.stderr,
             )
         return result
+
+    def run_tcl(
+        self,
+        script: str,
+        *,
+        timeout: float | None = 300.0,
+        cwd: Path | None = None,
+    ) -> CommandResult:
+        """Run a Tcl script in Vivado batch mode (non-GUI).
+
+        The script is written to a temporary file and passed to Vivado via
+        ``-mode batch -source``. Callers must supply fully constructed,
+        validated Tcl — never raw user shell input.
+        """
+        work_dir = cwd
+        with tempfile.TemporaryDirectory(prefix="vivado-mcp-") as tmp:
+            tmp_path = Path(tmp)
+            script_path = tmp_path / "vivado_mcp.tcl"
+            script_path.write_text(script, encoding="utf-8", newline="\n")
+            # Keep journals/logs out of the user's project tree.
+            log_path = tmp_path / "vivado_mcp.log"
+            journal_path = tmp_path / "vivado_mcp.jou"
+            args = [
+                "-mode",
+                "batch",
+                "-notrace",
+                "-log",
+                str(log_path),
+                "-journal",
+                str(journal_path),
+                "-source",
+                str(script_path),
+            ]
+            return self.run(args, timeout=timeout, cwd=work_dir)
 
     def _detect_candidates(self) -> list[Path]:
         """Return candidate executable paths for the current platform."""

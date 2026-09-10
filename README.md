@@ -15,7 +15,7 @@ AI Client (Cursor, etc.)
    Vivado MCP Server
         │
         ▼
-  Vivado abstraction layer
+  ProjectManager / Vivado abstraction
         │
         ▼
      Vivado Tcl / batch CLI
@@ -27,21 +27,24 @@ AI Client (Cursor, etc.)
 You must have your own valid Vivado installation and license. This project only
 talks to whatever Vivado executable you configure.
 
-## Current capabilities (Milestone 1)
+## Current capabilities (Milestone 2)
 
 | Tool | Description |
 |------|-------------|
-| `get_vivado_version` | Locate Vivado, run it in a non-GUI-safe way, and return structured version information |
+| `get_vivado_version` | Locate Vivado and return structured version information |
+| `create_project` | Create a new Vivado project for a given FPGA part |
+| `open_project` | Open/verify an existing `.xpr` project in batch mode |
+| `close_project` | Close a project cleanly via batch-mode Tcl |
 
-That is the full MCP surface for this release. Project creation, RTL editing,
-simulation, synthesis, implementation, bitstream generation, and report
-retrieval are intentionally **not** implemented yet.
+Not implemented yet: RTL source management, XDC constraints, simulation,
+synthesis, implementation, bitstream generation, timing/utilization reports,
+or arbitrary Tcl execution.
 
 ## Requirements
 
 - Python 3.11+
 - An MCP-compatible client (for example Cursor)
-- A local AMD/Xilinx Vivado installation (Windows or Linux)
+- A local AMD/Xilinx Vivado installation (**Windows** or **Linux**)
 
 ## Installation
 
@@ -50,16 +53,13 @@ retrieval are intentionally **not** implemented yet.
 ```powershell
 git clone https://github.com/MAK030504/vivado-mcp.git
 cd C:\Users\HP\vivado-mcp
-git checkout cursor/vivado-mcp-milestone-1-c381
+git checkout cursor/vivado-mcp-milestone-2-c381
 python -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install -U pip
 pip install -e .
 python -c "import vivado_mcp; print(vivado_mcp.__file__)"
 ```
-
-The last line must print a path under `C:\Users\HP\vivado-mcp`. If you see
-`ModuleNotFoundError`, you are not using the venv Python yet.
 
 ### Linux / macOS
 
@@ -78,40 +78,18 @@ variables (or your MCP client `env` block):
 
 | Variable | Purpose |
 |----------|---------|
-| `VIVADO_PATH` | Absolute path to the Vivado executable |
+| `VIVADO_PATH` | Absolute path to the Vivado executable (`vivado.bat` / `vivado`) |
 | `VIVADO_VERSION` | Optional preferred version for auto-detection (e.g. `2018.2`) |
-| `VIVADO_WORKSPACE` | Optional default workspace/project directory (reserved for later milestones) |
+| `VIVADO_WORKSPACE` | Optional default workspace directory (reserved for later use) |
 
-### Executable path examples
-
-Linux:
-
-```bash
-export VIVADO_PATH=/tools/Xilinx/Vivado/2018.2/bin/vivado
-export VIVADO_VERSION=2018.2
-```
-
-Windows (PowerShell):
+### Windows example
 
 ```powershell
-$env:VIVADO_PATH = "C:\Xilinx\Vivado\2018.2\bin\vivado.bat"
+$env:VIVADO_PATH = "D:\Softwares\Vivado\2018.2\bin\vivado.bat"
 $env:VIVADO_VERSION = "2018.2"
 ```
 
-**Windows tip:** you may set `VIVADO_PATH` to the Start Menu folder
-`...\Start Menu\Programs\Xilinx Design Tools\Vivado 2018.2`. Vivado MCP will
-treat that as a version hint and try to resolve
-`C:\Xilinx\Vivado\2018.2\bin\vivado.bat`. For the most reliable setup, point
-`VIVADO_PATH` at `vivado.bat` directly.
-
-If `VIVADO_PATH` is unset, Vivado MCP tries:
-
-1. `vivado` / `vivado.bat` on `PATH`
-2. Common install roots for versioned Vivado directories (no single hard-coded path)
-
-## How to run the MCP server
-
-After installation:
+## Run the MCP server
 
 ```bash
 vivado-mcp
@@ -119,13 +97,7 @@ vivado-mcp
 python -m vivado_mcp
 ```
 
-The server speaks MCP over **stdio** (default for Cursor and most local clients).
-
 ## Configure in Cursor
-
-On Windows, set `command` to the **full path** of `python.exe` from the
-environment where you installed `vivado-mcp`. Bare `python` often fails inside
-Cursor with `The system cannot find the path specified`.
 
 ```json
 {
@@ -134,7 +106,7 @@ Cursor with `The system cannot find the path specified`.
       "command": "C:\\Users\\HP\\vivado-mcp\\.venv\\Scripts\\python.exe",
       "args": ["-m", "vivado_mcp"],
       "env": {
-        "VIVADO_PATH": "C:\\Xilinx\\Vivado\\2018.2\\bin\\vivado.bat",
+        "VIVADO_PATH": "D:\\Softwares\\Vivado\\2018.2\\bin\\vivado.bat",
         "VIVADO_VERSION": "2018.2"
       }
     }
@@ -142,93 +114,126 @@ Cursor with `The system cannot find the path specified`.
 }
 ```
 
-Find the correct interpreter in PowerShell:
+On Windows, `command` must be the full path to the venv `python.exe` where
+`vivado-mcp` is installed.
 
-```powershell
-python -c "import sys; print(sys.executable)"
-python -c "import vivado_mcp; print(vivado_mcp.__file__)"
-```
+## Tool usage
 
-That Start Menu folder is accepted as a version hint and resolved to
-`vivado.bat` when possible (usually `C:\Xilinx\Vivado\2018.2\bin\vivado.bat`).
+### `get_vivado_version`
 
-See [`examples/README.md`](examples/README.md) for Windows troubleshooting.
-
-## Verify that Vivado is detected
-
-### From an AI client
-
-Ask the agent to call `get_vivado_version`. A successful result looks like:
+Ask the agent to call `get_vivado_version`.
 
 ```json
 {
   "installed": true,
   "version": "2018.2",
-  "executable": "C:\\Xilinx\\Vivado\\2018.2\\bin\\vivado.bat",
+  "executable": "D:\\Softwares\\Vivado\\2018.2\\bin\\vivado.bat",
   "platform": "windows",
   "error": null,
   "message": null
 }
 ```
 
-If Vivado is missing, you get a structured failure with guidance to set
-`VIVADO_PATH` — not a raw traceback dump.
+### `create_project`
 
-### From the command line
+Creates `{path}/{name}/{name}.xpr` for the given FPGA part. Never overwrites
+an existing project.
 
-```bash
-python -c "from vivado_mcp.vivado import Vivado; print(Vivado().get_version())"
+Example arguments:
+
+- `name`: `"counter"`
+- `path`: `"C:\\Users\\User Name\\Documents\\Vivado Projects"`
+- `part`: `"xc7a35tcpg236-1"`
+
+Success:
+
+```json
+{
+  "success": true,
+  "project": {
+    "name": "counter",
+    "path": ".../counter",
+    "part": "xc7a35tcpg236-1",
+    "xpr": ".../counter/counter.xpr"
+  },
+  "vivado_version": "2018.2",
+  "message": "Created Vivado project 'counter'."
+}
 ```
 
-### Run the test suite
+Error (already exists):
 
-```bash
-pytest
+```json
+{
+  "success": false,
+  "error": {
+    "type": "ProjectAlreadyExistsError",
+    "code": "project_already_exists",
+    "message": "A Vivado project already exists at ..."
+  }
+}
 ```
 
-Unit tests do **not** require Vivado. An optional integration test is skipped
-automatically when Vivado is not installed:
+### `open_project`
 
-```bash
-pytest -m integration
-```
+Opens an existing `.xpr` (or a project directory containing one) in batch mode,
+returns metadata, then closes so no GUI process remains.
+
+### `close_project`
+
+Opens the project if needed, closes it with Vivado Tcl, and exits batch mode.
 
 ## Architecture
 
 | Module | Responsibility |
 |--------|----------------|
-| `server.py` | MCP tool surface only — thin wrappers |
-| `vivado.py` | Locate / validate / invoke Vivado; parse structured results |
+| `server.py` | Thin MCP tool wrappers |
+| `projects.py` | Project create/open/close orchestration |
+| `tcl.py` | Safe Tcl script generation / path quoting |
+| `vivado.py` | Locate / validate / invoke Vivado; run batch Tcl |
 | `config.py` | Environment-based configuration |
 | `errors.py` | Typed error hierarchy |
 
 MCP handlers never spawn subprocesses directly. There is intentionally **no**
-generic `execute_tcl` / `execute_command` MCP tool. Future tools will expose
-controlled Vivado operations only.
+generic `execute_tcl` / `execute_command` MCP tool.
+
+## Testing
+
+```bash
+pytest
+```
+
+Unit tests do **not** require Vivado. Integration tests run only when Vivado is
+installed and are otherwise skipped:
+
+```bash
+pytest -m integration
+```
 
 ## Current limitations
 
-- Only `get_vivado_version` is implemented
-- No project, RTL, XDC, simulation, synthesis, implementation, or bitstream tools yet
+- No RTL source / XDC / sim / synth / impl / bitstream tools yet
+- No persistent Vivado session across MCP calls (each tool uses batch mode)
 - macOS is not a supported Vivado host target
-- Auto-detection covers common install layouts; unusual installs should set `VIVADO_PATH`
-- Long-running Vivado flows and rich report parsing are not part of this milestone
+- Unusual installs should set `VIVADO_PATH` explicitly
 
 ## Roadmap
 
-1. **Milestone 1 (this release):** Vivado discovery and version reporting
-2. **Milestone 2:** Project create/open and RTL source add/remove
-3. **Milestone 3:** XDC constraint management
-4. **Milestone 4:** Simulation
-5. **Milestone 5:** Synthesis, implementation, bitstream
-6. **Milestone 6:** Timing / utilization / message reports and debug helpers
-7. **Later:** Higher-level agentic RTL/FPGA workflows on top of the same abstraction
+1. **Milestone 1 (complete):** Vivado discovery and version reporting
+2. **Milestone 2 (complete):** Project create / open / close
+3. **Milestone 3:** RTL source add/remove
+4. **Milestone 4:** XDC constraint management
+5. **Milestone 5:** Simulation
+6. **Milestone 6:** Synthesis, implementation, bitstream
+7. **Milestone 7:** Timing / utilization / message reports and debug helpers
+8. **Later:** Higher-level agentic RTL/FPGA workflows
 
 ## Security
 
 - No unrestricted shell execution through MCP
-- No generic Tcl execution tool in this release
-- Filesystem paths are validated before use
+- No generic Tcl execution tool
+- Paths and project names are validated before use
+- Existing projects are never silently overwritten
 - This project does not implement or assist with license, DRM, or activation bypasses
 
 ## Development
@@ -236,7 +241,7 @@ controlled Vivado operations only.
 ```bash
 pip install -e ".[dev]"
 pytest
-python -m vivado_mcp  # starts stdio MCP server
+python -m vivado_mcp
 ```
 
 ## License
