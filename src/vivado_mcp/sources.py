@@ -147,8 +147,13 @@ class SourceManager:
         except VivadoMCPError as exc:
             return _failure(exc)
 
-    def add_source(self, project_path: str, source_path: str) -> SourceOperationResult:
-        """Add an existing ``.v`` / ``.sv`` file to the Vivado project."""
+    def add_source(
+        self,
+        project_path: str,
+        source_path: str,
+        fileset: str = "sources_1",
+    ) -> SourceOperationResult:
+        """Add an existing ``.v`` / ``.sv`` file to ``sources_1`` or ``sim_1``."""
         try:
             xpr_path = resolve_xpr_path(project_path)
             project_dir = xpr_path.parent
@@ -158,7 +163,11 @@ class SourceManager:
             lang = language_from_path(source)
 
             version = self._vivado_version_or_raise()
-            script = build_add_source_tcl(xpr_path=xpr_path, source_path=source)
+            script = build_add_source_tcl(
+                xpr_path=xpr_path,
+                source_path=source,
+                fileset=fileset,
+            )
             result = self.vivado.run_tcl(script, timeout=300.0)
             markers = _parse_markers(result.stdout)
             if markers.get("STATUS") != "OK":
@@ -168,6 +177,7 @@ class SourceManager:
                     stdout=result.stdout,
                     stderr=result.stderr,
                 )
+            fileset_name = markers.get("FILESET") or fileset.strip()
 
             return SourceOperationResult(
                 success=True,
@@ -175,7 +185,9 @@ class SourceManager:
                 source_path=str(source),
                 language=lang,
                 vivado_version=version,
-                message=f"Added source '{source.name}' to the project.",
+                message=(
+                    f"Added source '{source.name}' to fileset '{fileset_name}'."
+                ),
                 vivado_output=_trim_output(result.stdout, result.stderr),
             )
         except VivadoMCPError as exc:
