@@ -13,6 +13,7 @@ from typing import Any
 from mcp.server import MCPServer
 
 from vivado_mcp import __version__
+from vivado_mcp.bitstream import BitstreamManager
 from vivado_mcp.config import Config
 from vivado_mcp.implementation import ImplementationManager
 from vivado_mcp.projects import ProjectManager
@@ -31,13 +32,16 @@ mcp = MCPServer(
         "create_project / open_project / close_project for projects, "
         "create_rtl_file / add_source / remove_source / list_sources for RTL, "
         "create_testbench / run_simulation / get_simulation_status for RTL "
-        "simulation, run_synthesis / get_utilization for synthesis, and "
+        "simulation, run_synthesis / get_utilization for synthesis, "
         "run_implementation / get_implementation_status / "
-        "get_implemented_utilization / get_timing for place-and-route. "
-        "get_timing prefers post-implementation timing when available. "
-        "Add testbenches with add_source(..., fileset='sim_1'). "
-        "Users must provide their own licensed Vivado installation. There is "
-        "no generic Tcl or shell execution tool."
+        "get_implemented_utilization / get_timing for place-and-route, and "
+        "generate_bitstream / get_bitstream_status / get_bitstream_path for "
+        "FPGA bitstream generation. get_timing prefers post-implementation "
+        "timing when available. This server generates bitstreams but does not "
+        "program FPGA boards. Add testbenches with "
+        "add_source(..., fileset='sim_1'). Users must provide their own "
+        "licensed Vivado installation. There is no generic Tcl or shell "
+        "execution tool."
     ),
 )
 
@@ -64,6 +68,10 @@ def _build_synthesis_manager() -> SynthesisManager:
 
 def _build_implementation_manager() -> ImplementationManager:
     return ImplementationManager(_build_vivado())
+
+
+def _build_bitstream_manager() -> BitstreamManager:
+    return BitstreamManager(_build_vivado())
 
 
 @mcp.tool()
@@ -432,6 +440,65 @@ def get_timing(project_path: str) -> dict[str, Any]:
     return (
         _build_implementation_manager()
         .get_timing(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def generate_bitstream(project_path: str) -> dict[str, Any]:
+    """Generate an FPGA bitstream (``.bit``) for a project in batch mode.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Requires completed ``synth_1`` and ``impl_1``. Does not automatically run
+    synthesis or implementation. Uses Vivado project-mode
+    ``launch_runs impl_1 -to_step write_bitstream``. Does **not** program a
+    board.
+    """
+    logger.info("Tool invoked: generate_bitstream project=%s", project_path)
+    return (
+        _build_bitstream_manager()
+        .generate_bitstream(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_bitstream_status(project_path: str) -> dict[str, Any]:
+    """Return structured bitstream generation status for a project.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    Queries Vivado without launching write_bitstream. Possible statuses include
+    ``not_started``, ``running``, ``completed``, ``failed``, ``cancelled``,
+    ``blocked``, and ``unknown``.
+    """
+    logger.info(
+        "Tool invoked: get_bitstream_status project=%s", project_path
+    )
+    return (
+        _build_bitstream_manager()
+        .get_bitstream_status(project_path=project_path)
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def get_bitstream_path(project_path: str) -> dict[str, Any]:
+    """Return the validated absolute path of the generated ``.bit`` file.
+
+    Args:
+        project_path: Path to the ``.xpr`` or project directory.
+
+    The path must resolve to a non-empty file under the project / run output
+    tree. Does not allow arbitrary filesystem access.
+    """
+    logger.info("Tool invoked: get_bitstream_path project=%s", project_path)
+    return (
+        _build_bitstream_manager()
+        .get_bitstream_path(project_path=project_path)
         .to_dict()
     )
 
