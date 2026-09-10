@@ -2,6 +2,8 @@
 
 Downloaded for FYP exploration: severity classification, segmentation, TBSA estimation, and wound-healing method transfer.
 
+**Want these on your PC?** See [`DOWNLOAD_ON_PC.md`](DOWNLOAD_ON_PC.md) — ready zips in `pc-transfer/` plus a local re-download script.
+
 **Location:** `/workspace/datasets`  
 **Last updated:** 2026-09-10
 
