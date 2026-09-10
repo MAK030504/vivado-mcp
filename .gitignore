@@ -1,11 +1,6 @@
-# Keep dataset inventory/scripts in git; ignore bulky downloads
-/datasets/**
-!/datasets/README.md
-!/datasets/DOWNLOAD_ON_PC.md
-!/datasets/download_all.sh
-!/datasets/download_on_pc.sh
-!/datasets/download_on_pc.py
-
-# Never commit secrets or transfer zips
+# Default ignores
+.DS_Store
+__pycache__/
+*.pyc
+.env
 **/.api_key
-**/pc-transfer/
