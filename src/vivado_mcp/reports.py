@@ -153,6 +153,18 @@ class VivadoReportParser:
         """Map a Vivado ``impl_1`` STATUS string to a coarse MCP status."""
         return classify_impl_run_status(run_status)
 
+    def parse_bitstream_status(
+        self,
+        run_status: str,
+        *,
+        bitstream_exists: bool = False,
+    ) -> str:
+        """Map Vivado run STATUS + bitstream presence to an MCP bitstream state."""
+        return classify_bitstream_run_status(
+            run_status,
+            bitstream_exists=bitstream_exists,
+        )
+
     def extract_errors_warnings(self, text: str) -> tuple[list[str], list[str]]:
         """Extract concise ERROR / WARNING lines from Vivado log text.
 
@@ -297,6 +309,41 @@ def classify_impl_run_status(run_status: str) -> str:
         return "running"
     if "not started" in text or text == "n/a":
         return "not_started"
+    return "unknown"
+
+
+def classify_bitstream_run_status(
+    run_status: str,
+    *,
+    bitstream_exists: bool = False,
+) -> str:
+    """Map Vivado ``impl_1`` STATUS to a bitstream-generation MCP status.
+
+    ``write_bitstream Complete!`` (or a valid existing ``.bit`` after a
+    completed write) maps to ``completed``. ``route_design Complete!`` without
+    a bitstream maps to ``not_started``. Incomplete implementation maps to
+    ``blocked``.
+    """
+    text = (run_status or "").strip().lower()
+    if not text:
+        return "unknown"
+    if "error" in text or "fail" in text:
+        return "failed"
+    if "cancel" in text:
+        return "cancelled"
+    if "write_bitstream" in text and ("running" in text or "queued" in text):
+        return "running"
+    if "write_bitstream" in text and "complete" in text:
+        return "completed"
+    if bitstream_exists and "complete" in text:
+        return "completed"
+    if "running" in text or "queued" in text:
+        return "running"
+    if "complete" in text:
+        # e.g. route_design Complete! — impl done, bitstream not started
+        return "not_started"
+    if "not started" in text or text == "n/a":
+        return "blocked"
     return "unknown"
 
 

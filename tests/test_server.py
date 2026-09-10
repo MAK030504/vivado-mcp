@@ -81,6 +81,13 @@ def test_mcp_server_registers_implementation_tools() -> None:
     assert "get_timing" in tool_names
 
 
+def test_mcp_server_registers_bitstream_tools() -> None:
+    tool_names = {tool.name for tool in server_module.mcp._tool_manager.list_tools()}
+    assert "generate_bitstream" in tool_names
+    assert "get_bitstream_status" in tool_names
+    assert "get_bitstream_path" in tool_names
+
+
 def test_create_project_tool_delegates(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     from vivado_mcp.projects import ProjectInfo, ProjectManager, ProjectOperationResult
 

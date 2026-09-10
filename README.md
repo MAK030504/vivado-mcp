@@ -16,10 +16,10 @@ AI Client (Cursor, etc.)
         │
         ▼
   ProjectManager / SourceManager / SimulationManager /
-  SynthesisManager / ImplementationManager
+  SynthesisManager / ImplementationManager / BitstreamManager
         │
         ▼
-     Vivado abstraction
+     Vivado abstraction (VivadoRunner)
         │
         ▼
      Vivado Tcl / batch CLI
@@ -31,7 +31,7 @@ AI Client (Cursor, etc.)
 You must have your own valid Vivado installation and license. This project only
 talks to whatever Vivado executable you configure.
 
-## Current capabilities (Milestone 6)
+## Current capabilities (Milestone 7)
 
 | Tool | Description |
 |------|-------------|
@@ -52,16 +52,29 @@ talks to whatever Vivado executable you configure.
 | `get_implementation_status` | Return structured status for the implementation run |
 | `get_implemented_utilization` | Return structured post-implementation utilization |
 | `get_timing` | Prefer post-implementation timing; fall back to post-synthesis |
+| `generate_bitstream` | Generate an FPGA bitstream (`.bit`) via `write_bitstream` |
+| `get_bitstream_status` | Return structured bitstream generation status |
+| `get_bitstream_path` | Return the validated absolute path of the generated `.bit` |
 
 Supported RTL languages: **Verilog** (`.v`) and **SystemVerilog** (`.sv`).
 
-Not implemented yet: XDC constraint management, bitstream generation, board
-programming, waveform UI, RTL linting, or arbitrary Tcl execution.
+### Complete FPGA build flow
+
+```text
+Project → RTL → Simulation → Synthesis → Implementation → Bitstream (.bit)
+```
+
+The MCP generates the bitstream file but does **not** program an FPGA board
+yet (no Hardware Manager, JTAG, or USB programming).
+
+Not implemented yet: XDC constraint management, board programming, waveform UI,
+RTL linting, or arbitrary Tcl execution.
 
 **Note:** Synthesis checks whether RTL can be synthesized. Implementation
 determines whether the synthesized design can be placed and routed on the
 target FPGA. Prefer post-implementation timing when evaluating whether timing
-is actually met.
+is actually met. Bitstream generation requires a successfully completed
+implementation run.
 
 ## Requirements
 
@@ -78,7 +91,7 @@ is actually met.
 git clone https://github.com/mak030504/vivado-mcp.git
 cd C:\Users\HP\vivado-mcp
 git fetch
-git checkout cursor/vivado-mcp-milestone-6-c381
+git checkout cursor/vivado-mcp-milestone-7-c381
 .\.venv\Scripts\activate
 pip install -e .
 python -c "import vivado_mcp; print(vivado_mcp.__version__)"
@@ -479,8 +492,138 @@ timing `"met"` unless the timing report says so.
 - Requires a Vivado license that includes the **Implementation** feature for the
   chosen device (WebPACK covers many Artix-7 parts including `xc7a35t`, but a
   missing/locked license or out-of-memory condition will fail place/route)
-- Bitstream generation and board programming are intentionally out of scope
+- Board programming is intentionally out of scope for this milestone
 - No automatic timing optimization or RTL rewriting
+
+## Bitstream tools (Milestone 7)
+
+Generate an FPGA bitstream (`.bit`) after a successful implementation. The MCP
+**does not** program a board.
+
+### Prerequisites
+
+1. Project exists and can be opened
+2. Valid top module
+3. `synth_1` completed successfully
+4. `impl_1` completed successfully (implementation has not failed)
+
+`generate_bitstream` will **not** silently run synthesis or implementation.
+
+### `generate_bitstream`
+
+```text
+generate_bitstream(project_path="C:/path/to/project.xpr")
+```
+
+Uses Vivado 2018.2 project-mode batch flow:
+
+```tcl
+launch_runs impl_1 -to_step write_bitstream
+wait_on_run impl_1
+```
+
+Success is based on run STATUS **and** a validated non-empty `.bit` file — not
+merely Vivado exit code 0.
+
+Example success:
+
+```json
+{
+  "success": true,
+  "status": "completed",
+  "message": "Bitstream generated successfully",
+  "project": "C:/path/to/project",
+  "bitstream": {
+    "path": "C:/path/to/project/project.runs/impl_1/counter.bit",
+    "filename": "counter.bit",
+    "size_bytes": 123456
+  },
+  "errors": [],
+  "warnings": []
+}
+```
+
+If implementation has not completed:
+
+```json
+{
+  "success": false,
+  "status": "blocked",
+  "reason": "Implementation must complete before bitstream generation"
+}
+```
+
+Timeouts return `status: "timeout"` with a clear message. Trimmed log summaries
+and artifact paths under `.vivado_mcp/` are preserved for debugging; full Vivado
+logs are not dumped into the MCP response.
+
+### `get_bitstream_status`
+
+Returns the current bitstream state: `not_started`, `running`, `completed`,
+`failed`, `cancelled`, `blocked`, or `unknown`.
+
+```json
+{
+  "success": true,
+  "status": "completed",
+  "bitstream_exists": true,
+  "path": "C:/path/to/project/project.runs/impl_1/counter.bit"
+}
+```
+
+If implementation is incomplete:
+
+```json
+{
+  "success": true,
+  "status": "blocked",
+  "reason": "Implementation has not completed"
+}
+```
+
+### `get_bitstream_path`
+
+Returns the validated absolute `.bit` path when available:
+
+```json
+{
+  "success": true,
+  "status": "available",
+  "path": "C:/path/to/project/project.runs/impl_1/counter.bit",
+  "filename": "counter.bit",
+  "size_bytes": 123456
+}
+```
+
+Otherwise:
+
+```json
+{
+  "success": true,
+  "status": "not_available",
+  "path": null
+}
+```
+
+Paths must resolve to a regular non-empty `.bit` file under the project tree
+(typically `{project}.runs/impl_1/{top}.bit`). Path traversal and arbitrary
+filesystem access are rejected.
+
+### Example bitstream workflow
+
+1. `create_project` / `add_source`
+2. `run_synthesis`
+3. `run_implementation`
+4. `generate_bitstream`
+5. `get_bitstream_status`
+6. `get_bitstream_path`
+
+### Known limitations (bitstream)
+
+- Does **not** program FPGA hardware (no JTAG / Hardware Manager)
+- Requires completed implementation; will not auto-run synth/impl
+- Bitstream contents are not interpreted — only existence, type, size, and path
+- Large devices may need a long VivadoRunner timeout
 
 ## Security
 
@@ -490,8 +633,10 @@ timing `"met"` unless the timing report says so.
 - Existing files are never silently overwritten
 - `remove_source` does not delete disk files
 - `simulation_time` is validated; Tcl injection is rejected
-- Synthesis/implementation/report tools only run controlled Vivado flows
-  (`synth_1`, `impl_1`, `report_utilization`, `report_timing_summary`)
+- Synthesis/implementation/bitstream/report tools only run controlled Vivado
+  flows (`synth_1`, `impl_1`, `write_bitstream`, `report_utilization`,
+  `report_timing_summary`)
+- Bitstream paths are validated to stay inside the project / run output area
 - This project does not assist with license/DRM bypasses
 
 ## Testing
@@ -508,13 +653,13 @@ pytest -m integration
 ```
 
 On a machine with Vivado 2018.2 installed, integration tests create temporary
-projects for simulation, synthesis, and implementation workflows, then clean
-up. They do not modify a permanent `mcp_counter` project.
+projects for simulation, synthesis, implementation, and bitstream workflows,
+then clean up. They do not modify a permanent `mcp_counter` project.
 
 ## Current limitations
 
 - No XDC constraint management tools yet
-- No bitstream generation or board programming
+- No FPGA board programming (bitstream generation only)
 - Post-synthesis timing is estimated; prefer post-implementation timing
 - Timing is often unavailable without constraints (expected)
 - No waveform visualization
@@ -532,9 +677,10 @@ up. They do not modify a permanent `mcp_counter` project.
 4. **Milestone 4 — RTL Simulation — COMPLETE** (verified on Vivado 2018.2 / Windows)
 5. **Milestone 5 — Synthesis / Utilization / Timing — COMPLETE** (verified on Vivado 2018.2 / Windows)
 6. **Milestone 6 — Implementation / Place-and-Route — COMPLETE** (verified on Vivado 2018.2 / Windows)
-7. **Milestone 7:** XDC constraint management
-8. **Milestone 8:** Bitstream generation and programming
-9. **Later:** Higher-level agentic RTL/FPGA workflows
+7. **Milestone 7 — Bitstream Generation** (implemented; verify on Vivado 2018.2 / Windows)
+8. **Milestone 8:** XDC constraint management
+9. **Milestone 9:** FPGA board programming (Hardware Manager / JTAG)
+10. **Later:** Higher-level agentic RTL/FPGA workflows
 
 ## License
 

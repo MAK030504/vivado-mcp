@@ -192,3 +192,27 @@ class ImplementationNotRunError(VivadoMCPError):
 
     def __init__(self, message: str) -> None:
         super().__init__(message, code="implementation_not_run")
+
+
+class BitstreamError(VivadoMCPError):
+    """Raised when Vivado bitstream generation fails or prerequisites are missing."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: str = "failed",
+        stdout: str = "",
+        stderr: str = "",
+    ) -> None:
+        super().__init__(message, code="bitstream_error")
+        self.status = status
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class BitstreamNotRunError(VivadoMCPError):
+    """Raised when a bitstream path is requested before generation completes."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="bitstream_not_run")
