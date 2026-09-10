@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vivado-mcp"
+version = "0.1.0"
+description = "MCP server for programmatic interaction with AMD/Xilinx Vivado via Tcl batch mode"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Vivado MCP Contributors" },
+]
+keywords = [
+    "mcp",
+    "vivado",
+    "xilinx",
+    "amd",
+    "fpga",
+    "rtl",
+    "tcl",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Embedded Systems",
+    "Typing :: Typed",
+]
+dependencies = [
+    "mcp>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+vivado-mcp = "vivado_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/mak030504/vivado-mcp"
+Repository = "https://github.com/mak030504/vivado-mcp"
+Issues = "https://github.com/mak030504/vivado-mcp/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vivado_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "integration: tests that require a real Vivado installation",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
