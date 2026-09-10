@@ -2,3 +2,6 @@
 /datasets/**
 !/datasets/README.md
 !/datasets/download_all.sh
+
+# Never commit secrets
+**/.api_key

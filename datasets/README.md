@@ -84,11 +84,21 @@ Downloaded for FYP exploration: severity classification, segmentation, TBSA esti
 
 ---
 
+### 9. Roboflow Universe burn datasets (YOLOv8)
+| Dataset | Path | Images | Notes |
+|---|---|---|---|
+| SkinBurns (`ishaan-konar-uniko/skinburns-xjtt6`) | `roboflow/skinburns-xjtt6/` | ~13.1k | Degree detection, YOLOv8 |
+| Skin Burns (`aibuildersclub/skin-burns-4yoo2`) | `roboflow/skin-burns-4yoo2/` | ~4.8k | Degree detection, YOLOv8 |
+| PFA (`burndegree/pfa-hfzdi`) | `roboflow/pfa-hfzdi/` (+ coco-seg) | ~728 | Instance seg / degree classes |
+| PelukBakar PB (`pelukbakar/pb-tkjgx`) | — | — | **Deleted / unavailable** on Universe |
+| wound+skinburn (`onur-mutlu/...`) | — | — | **Deleted / unavailable** on Universe |
+
+Also downloaded related Kaggle classification set: `kaggle-last-databurn/` (~1.3k images in 1st/2nd/3rd folders).
+
 ## Could not download (need credentials / approval)
 
 | Dataset | Why blocked | What to do |
 |---|---|---|
-| **Roboflow** PB / SkinBurns / wound+skinburn / AiBuildersClub / PFA | API key required (401/403) | Create free Roboflow account → set `ROBOFLOW_API_KEY` → re-run `./download_all.sh` |
 | **EBIS full images** | Signed commitment | Email after signing PDF in `misc/EBIS/commitments/` |
 | **IIT Roorkee / AIIMS Rishikesh (803 clinical)** | SPA site; no open zip found | https://geninfo.iitr.ac.in/projects — download via their portal / contact authors |
 | **Alberta 1684 surgeon-labeled** | Not public | Email BAM paper authors |
